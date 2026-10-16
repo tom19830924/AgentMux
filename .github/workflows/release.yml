@@ -1,0 +1,125 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "版本號（例如 v0.1.0）"
+        required: true
+      dry_run:
+        description: "只編譯打包，不發 Release、不推 tap"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  TAP_REPO: tom19830924/homebrew-tap
+  FORMULA: Formula/am.rb
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 環境資訊
+        run: swift --version && sw_vers
+
+      - name: 決定版本號
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$TAG"            >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}"    >> "$GITHUB_OUTPUT"
+
+      - name: 測試
+        run: swift test
+
+      - name: 編譯 universal binary
+        run: swift build -c release --arch arm64 --arch x86_64
+
+      - name: 打包
+        id: pkg
+        run: |
+          BINDIR="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)"
+          NAME="am-${{ steps.ver.outputs.version }}-macos-universal.tar.gz"
+          mkdir -p dist
+          tar czf "dist/$NAME" -C "$BINDIR" am
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "sha=$(shasum -a 256 "dist/$NAME" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          lipo -info "$BINDIR/am"
+
+      - name: 檢查產物
+        run: |
+          echo "檔名  : ${{ steps.pkg.outputs.name }}"
+          echo "sha256: ${{ steps.pkg.outputs.sha }}"
+          ls -lh dist/
+
+      # ---- dry run 到此為止，產物留成 artifact 供下載檢查 ----
+      - name: 上傳 artifact（dry run）
+        if: inputs.dry_run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pkg.outputs.name }}
+          path: dist/
+
+      - name: 建立 GitHub Release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.tag }}" \
+            "dist/${{ steps.pkg.outputs.name }}" \
+            --title "${{ steps.ver.outputs.tag }}" \
+            --generate-notes
+
+      - name: 取出 tap 倉庫
+        if: ${{ !inputs.dry_run }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TAP_REPO }}
+          token: ${{ secrets.TAP_WRITER }}
+          path: tap
+
+      - name: 產生 formula 並推送
+        if: ${{ !inputs.dry_run }}
+        working-directory: tap
+        run: |
+          mkdir -p Formula
+          cat > "${{ env.FORMULA }}" <<EOF
+          # 這個檔案由 ${{ github.repository }} 的 CI 自動產生，請勿手動編輯。
+          class Am < Formula
+            desc "Per-project AI agent gateway switcher"
+            homepage "https://github.com/${{ github.repository }}"
+            url "https://github.com/${{ github.repository }}/releases/download/${{ steps.ver.outputs.tag }}/${{ steps.pkg.outputs.name }}"
+            sha256 "${{ steps.pkg.outputs.sha }}"
+            version "${{ steps.ver.outputs.version }}"
+
+            depends_on macos: :ventura
+
+            def install
+              bin.install "am"
+            end
+
+            test do
+              assert_match "am", shell_output("#{bin}/am --help")
+            end
+          end
+          EOF
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "${{ env.FORMULA }}"
+          if git diff --cached --quiet; then
+            echo "formula 內容無變化，略過推送"
+          else
+            git commit -m "am ${{ steps.ver.outputs.version }}"
+            git push
+          fi
