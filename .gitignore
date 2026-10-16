@@ -1,0 +1,19 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Xcode
+DerivedData/
+*.xcuserstate
+
+# 本機狀態與金鑰，不可外流
+.claude/
+.agentmux/
+.mcp.json
+
+# 編輯器
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
