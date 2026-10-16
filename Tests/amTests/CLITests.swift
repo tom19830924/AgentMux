@@ -140,16 +140,18 @@ struct CLITests {
 
     @Test("啟動不產生任何暫存檔")
     func noTempFiles() throws {
-        // Sample after building the scratch project, so only what the launch
-        // itself adds is compared.
+        // Hand the launch a temporary directory of its own. The shared one also
+        // holds the scratch projects that tests running in parallel create, so
+        // sampling it would pick those up instead of anything the launch wrote.
         let directory = try project()
-        let temporary = FileManager.default.temporaryDirectory.path
-        let before = Set(try FileManager.default.contentsOfDirectory(atPath: temporary))
+        let temporary = FileManager.default.temporaryDirectory
+            .appendingPathComponent("am-tmp-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
 
-        _ = try am(["claude", "-g", "mixroute"], in: directory)
+        _ = try am(["claude", "-g", "mixroute"], in: directory, env: ["TMPDIR": temporary.path])
 
-        let after = Set(try FileManager.default.contentsOfDirectory(atPath: temporary))
-        #expect(after.subtracting(before).isEmpty)
+        let written = try FileManager.default.contentsOfDirectory(atPath: temporary.path)
+        #expect(written.isEmpty)
     }
 
     @Test("--dry-run 不啟動，也不印出金鑰")
