@@ -40,15 +40,15 @@ jobs:
           echo "tag=$TAG"            >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}"    >> "$GITHUB_OUTPUT"
 
-      - name: 版本號必須與 tag 一致
+      - name: 把 tag 寫進 Version.swift
         run: |
-          IN_SOURCE=$(grep -oE 'static let version = "[^"]+"' Sources/am/Version.swift | cut -d'"' -f2)
-          WANTED="${{ steps.ver.outputs.version }}"
-          if [ "$IN_SOURCE" != "$WANTED" ]; then
-            echo "::error::Version.swift 寫的是 $IN_SOURCE，但 tag 是 $WANTED"
-            exit 1
-          fi
-          echo "版本號一致：$IN_SOURCE"
+          VERSION="${{ steps.ver.outputs.version }}"
+          sed -i '' "s/static let version = \"dev\"/static let version = \"$VERSION\"/" \
+            Sources/am/Version.swift
+          # A silent no-op here would ship a binary calling itself "dev".
+          grep -q "static let version = \"$VERSION\"" Sources/am/Version.swift \
+            || { echo "::error::沒能把版本號寫進 Version.swift"; exit 1; }
+          echo "已寫入：$VERSION"
 
       - name: 測試
         run: swift test
@@ -66,6 +66,12 @@ jobs:
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "sha=$(shasum -a 256 "dist/$NAME" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           lipo -info "$BINDIR/am"
+          # The binary itself is the last word: what it reports is what the
+          # user will see, whatever happened earlier in the workflow.
+          REPORTED="$("$BINDIR/am" --version)"
+          [ "$REPORTED" = "${{ steps.ver.outputs.version }}" ] \
+            || { echo "::error::執行檔回報 $REPORTED，但 tag 是 ${{ steps.ver.outputs.version }}"; exit 1; }
+          echo "執行檔回報的版本：$REPORTED"
 
       - name: 檢查產物
         run: |
