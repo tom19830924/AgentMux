@@ -17,3 +17,9 @@ DerivedData/
 
 # macOS
 .DS_Store
+
+# 截圖等影像：很容易在 add -A 時被掃進來，而畫面上常有金鑰
+*.png
+*.jpg
+*.jpeg
+*.heic
