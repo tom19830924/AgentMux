@@ -245,6 +245,33 @@ struct SecretDecision {
     var pending: (name: String, value: String)?
 }
 
+
+/// Why a name for a secret cannot be used, or nil when it can.
+///
+/// This prompt sits directly above the one that takes the key itself, and only
+/// that one is masked — so a key pasted here lands on the screen, in the
+/// scrollback, and in secrets.json as a *name*, which `am ls` then prints. The
+/// character rules alone would not catch it: a key is mostly letters, digits
+/// and dashes, which a name is allowed to be.
+func secretNameProblem(_ value: String) -> String? {
+    if value.isEmpty { return "這一項必填" }
+
+    let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-."))
+    if value.rangeOfCharacter(from: allowed.inverted) != nil {
+        return "只能用英數字、底線、點與連字號"
+    }
+
+    let keyPrefixes = ["sk-", "sk_", "pk-", "pk_", "ghp_", "gho_", "github_pat_", "xai-", "AIza"]
+    if keyPrefixes.contains(where: value.hasPrefix) {
+        return "這看起來是金鑰本身。這一題要填的是它的名稱，例如 my-gateway_key —— 金鑰在下一題貼"
+    }
+    if value.count > 40 {
+        return "名稱不會這麼長，這看起來是金鑰本身。這一題要填的是它的名稱，金鑰在下一題貼"
+    }
+
+    return nil
+}
+
 /// Keys are often shared: the same provider token drives both Claude and Codex.
 /// Offer the ones already on disk before asking for another paste.
 private func chooseSecret(
@@ -280,11 +307,7 @@ private func chooseSecret(
     let name = try ui.text(
         "金鑰名稱（在 secrets.json 裡的鍵名）",
         placeholder: "\(gatewayID)_key", defaultValue: "\(gatewayID)_key"
-    ) { value in
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-."))
-        return value.rangeOfCharacter(from: allowed.inverted) != nil
-            ? "只能用英數字、底線、點與連字號" : nil
-    }
+    ) { secretNameProblem($0) }
 
     let value = try ui.password("貼上 \(name) 的值")
     return SecretDecision(name: name, pending: (name: name, value: value))
