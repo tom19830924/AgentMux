@@ -22,16 +22,52 @@ Swift 寫的 macOS CLI，**零外部依賴**。
 
 所以直接打 `claude` 或 `codex` 時行為與安裝前完全一致。
 
-## 建置
+## 安裝
+
+### Homebrew
 
 ```console
-$ swift build -c release      # 產出 .build/release/am
+$ brew tap tom19830924/tap
+$ brew trust tom19830924/tap
+$ brew install am
+```
+
+中間那行是 Homebrew 對第三方 tap 的要求 —— formula 是會被執行的 Ruby 程式碼，載入前要你明確點頭。做過一次之後，這個 tap 裡的其他工具都不用再信任。
+
+更新：
+
+```console
+$ brew update && brew upgrade am
+```
+
+`brew update` 會把 tap 倉庫拉到最新，少了它 `upgrade` 看不到新版本。
+
+### 自己編譯
+
+```console
+$ git clone https://github.com/tom19830924/AgentMux.git
+$ cd AgentMux
+$ swift build -c release        # 產出 .build/release/am
 $ swift test
 ```
 
-也可以直接用 Xcode 開啟 `Package.swift`。
+需要 Xcode 16 以上（`Package.swift` 是 swift-tools-version 6.0）。也可以直接用 Xcode 開啟 `Package.swift`。
 
-產出的是單一執行檔，macOS 內建 Swift runtime，複製到別台 Mac 就能跑，不需要安裝任何東西。要怎麼放進 PATH 由你決定。
+放進 PATH：
+
+```console
+$ install -m 755 .build/release/am /usr/local/bin/am
+```
+
+產出的是單一執行檔，macOS 內建 Swift runtime，複製到別台 Mac 就能跑，不需要安裝任何東西。
+
+想編出跟發行版同樣的 universal binary：
+
+```console
+$ swift build -c release --arch arm64 --arch x86_64
+```
+
+自己編的執行檔 `am --version` 會回報 `dev`。版本號只在發版流程中寫入，本機編譯的不是發行版本，不會冒充成某個版號。
 
 ## 使用
 
@@ -120,6 +156,44 @@ $ am add
 - **執行期不會寫任何東西到專案外**，也不產生暫存檔。
 - 若某個 gateway 把金鑰寫進 `args`，啟動前會被擋下並報錯。
 - `am ls` 只顯示「已設定 / 缺少」，`--dry-run` 只顯示金鑰名稱。
+
+## 發版
+
+推一個 `v` 開頭的 tag，其餘自動完成：
+
+```console
+$ git tag v0.1.2
+$ git push origin v0.1.2
+```
+
+GitHub Actions 接手：
+
+1. 把 tag 的版本號寫進 `Sources/am/Version.swift`
+2. 跑測試
+3. 編譯 universal binary（arm64 + x86_64）
+4. 建立 GitHub Release，附上 `am-<版本>-macos-universal.tar.gz`
+5. 算出 sha256，重新產生 `tom19830924/homebrew-tap` 的 `Formula/am.rb` 並推送
+
+使用者 `brew update && brew upgrade am` 就拿得到。
+
+### 版本號只有一個來源
+
+`Version.swift` 裡放的是佔位符 `dev`，真正的版本號只存在於 git tag，編譯前才被寫進去。發行的執行檔因此不可能與它的 tag 不一致 —— 這不是靠檢查維持的，而是結構上只有一個數字在流動。
+
+寫入沒生效、或編譯出來的執行檔回報的版本與 tag 不符，workflow 都會中止，不會發出任何東西。
+
+### 先試跑，不發布
+
+Actions 頁面的 **Release** workflow 有 Run workflow 按鈕。填上版本號、保持「只編譯打包」勾選，就會跑完測試與編譯，但不碰 Release 也不碰 tap，產物留成 artifact 供下載檢查。
+
+正式發版請用推 tag 的方式，版本號才會和 commit 綁在一起。
+
+### 維護者須知
+
+- 每次 push 都會跑 `Tests` workflow，不必等到發版才知道壞了
+- `Formula/am.rb` 由 CI 產生，不要手動編輯 `homebrew-tap`
+- CI 推送 formula 用的是 `TAP_WRITER` 這個 repo secret（fine-grained token，範圍只有 `homebrew-tap`、權限只有 Contents 寫入）。它過期的徵兆是發版卡在「取出 tap 倉庫」那一步，Release 照常產出但 formula 停在舊版
+
 
 ## 實作筆記
 
