@@ -1,7 +1,8 @@
 import Foundation
 
-/// Creates `.agentmux/` and then walks straight into the add wizard, so the
-/// command leaves behind a gateway that works rather than a template to fill in.
+/// Walks straight into the add wizard, so the command leaves behind a gateway
+/// that works rather than a template to fill in. `.agentmux/` appears only when
+/// the wizard reaches the end: an abandoned run leaves nothing behind.
 ///
 /// Everything it writes stays inside `.agentmux/`: nothing is read from
 /// .claude/settings.json or .codex/config.toml, and no .gitignore is touched —
@@ -21,23 +22,9 @@ func initCommand(prompter: Prompter? = nil) throws -> Int32 {
         throw AgentMuxError("am init 需要互動式終端機", hint: "請直接在終端機裡執行")
     }
 
-    try FileManager.default.createDirectory(
-        atPath: paths.directory, withIntermediateDirectories: true
-    )
-    try GatewayStore.save(.empty(), to: paths.configFile)
-    try SecretStore.save([:], to: paths.secretsFile)
-
-    Terminal.write(
-        "\(ansi.green("已建立")) \(relativeToCurrentDirectory(paths.directory))/"
-            + "\(ansi.dim("（gateways.json、secrets.json 0600）"))\n\n"
-    )
-
-    do {
-        return try addCommand(paths: paths, prompter: prompter)
-    } catch {
-        // A cancelled wizard must not leave an empty config behind.
-        try? FileManager.default.removeItem(atPath: paths.directory)
-        Terminal.write(ansi.dim("已取消，未留下任何設定檔") + "\n")
-        throw error
-    }
+    // The wizard creates the directory only once it has every answer it needs.
+    // Nothing is written up front, so an abandoned run leaves no half-made
+    // project to trip over the "already exists" check on the next attempt —
+    // and that holds for Ctrl-C too, which no clean-up here would survive.
+    return try addCommand(paths: paths, prompter: prompter, creatingProject: true)
 }

@@ -65,7 +65,12 @@ private let newGatewaySentinel = "\u{0}new-gateway"
 private let newSecretSentinel = "\u{0}new-secret"
 private let noSecretSentinel = "\u{0}no-secret"
 
-func addCommand(paths suppliedPaths: ProjectPaths? = nil, prompter: Prompter? = nil) throws -> Int32 {
+/// `creatingProject` is what `am init` passes: there is no `.agentmux/` yet,
+/// and none is created until the wizard has run all the way through.
+func addCommand(
+    paths suppliedPaths: ProjectPaths? = nil, prompter: Prompter? = nil,
+    creatingProject: Bool = false
+) throws -> Int32 {
     let paths = try suppliedPaths ?? ProjectPaths.require()
     let scripted = prompter != nil
     if !scripted, !Terminal.isInteractive {
@@ -76,8 +81,9 @@ func addCommand(paths suppliedPaths: ProjectPaths? = nil, prompter: Prompter? = 
     }
     let ui = prompter ?? TerminalPrompter()
 
-    var config = try GatewayStore.load(paths.configFile)
-    ui.intro("新增 gateway 設定")
+    var config = GatewayFile.empty()
+    if !creatingProject { config = try GatewayStore.load(paths.configFile) }
+    ui.intro(creatingProject ? "設定第一個 gateway" : "新增 gateway 設定")
 
     let agent = try Agent.named(
         try ui.select("要設定哪個 agent？", Agent.allCases.map {
@@ -120,7 +126,7 @@ func addCommand(paths suppliedPaths: ProjectPaths? = nil, prompter: Prompter? = 
         }
     }
 
-    let secretName = try chooseSecret(
+    let secret = try chooseSecret(
         config: config, gatewayID: gatewayID, mode: mode, paths: paths, ui: ui
     )
 
@@ -134,7 +140,7 @@ func addCommand(paths suppliedPaths: ProjectPaths? = nil, prompter: Prompter? = 
     let agentConfig = buildAgentConfig(
         WizardAnswers(
             agent: agent, mode: mode, name: gatewayID, baseURL: baseURL,
-            secretName: secretName, model: model.isEmpty ? nil : model, wireAPI: wireAPI
+            secretName: secret.name, model: model.isEmpty ? nil : model, wireAPI: wireAPI
         )
     )
 
@@ -142,6 +148,24 @@ func addCommand(paths suppliedPaths: ProjectPaths? = nil, prompter: Prompter? = 
         throw AgentMuxError("找不到 gateway \"\(gatewayID)\"")
     }
     config.gateways[index].agents[agent.id] = agentConfig
+
+    // The first and only time this flow touches the disk. Up to here an
+    // abandoned wizard leaves the project exactly as it was found — including
+    // Ctrl-C, which kills the process outright and unwinds no `catch`.
+    if creatingProject {
+        try FileManager.default.createDirectory(
+            atPath: paths.directory, withIntermediateDirectories: true
+        )
+        Terminal.write(
+            "\(ansi.green("已建立")) \(relativeToCurrentDirectory(paths.directory))/"
+                + "\(ansi.dim("（gateways.json、secrets.json 0600）"))\n"
+        )
+    }
+    if let pending = secret.pending {
+        try SecretStore.write(name: pending.name, value: pending.value, to: paths.secretsFile)
+    } else if creatingProject {
+        try SecretStore.save([:], to: paths.secretsFile)
+    }
     try GatewayStore.save(config, to: paths.configFile)
 
     ui.outro("\(ansi.green("已設定")) \(gatewayID) / \(agent.id)　"
@@ -213,12 +237,20 @@ private func askGatewayName(existing: [String], ui: Prompter) throws -> String {
     }
 }
 
+/// What the wizard settled on for the key: the name the config references, and
+/// the value to store when the user typed a new one. Writing is the caller's
+/// job, once the whole wizard has succeeded.
+struct SecretDecision {
+    var name: String?
+    var pending: (name: String, value: String)?
+}
+
 /// Keys are often shared: the same provider token drives both Claude and Codex.
 /// Offer the ones already on disk before asking for another paste.
 private func chooseSecret(
     config: GatewayFile, gatewayID: String, mode: GatewayMode,
     paths: ProjectPaths, ui: Prompter
-) throws -> String? {
+) throws -> SecretDecision {
     let stored = try SecretStore.load(paths.secretsFile)
     let referenced = config.gateways.flatMap { gateway in
         gateway.agents.values.flatMap(secretReferencesIn)
@@ -242,8 +274,8 @@ private func chooseSecret(
     let initial = own.sorted().first ?? (mode == .official ? noSecretSentinel : choices[0].value)
     let chosen = try ui.select("金鑰要用哪一把？", choices, initial: initial)
 
-    if chosen == noSecretSentinel { return nil }
-    if chosen != newSecretSentinel { return chosen }
+    if chosen == noSecretSentinel { return SecretDecision(name: nil, pending: nil) }
+    if chosen != newSecretSentinel { return SecretDecision(name: chosen, pending: nil) }
 
     let name = try ui.text(
         "金鑰名稱（在 secrets.json 裡的鍵名）",
@@ -255,6 +287,5 @@ private func chooseSecret(
     }
 
     let value = try ui.password("貼上 \(name) 的值")
-    try SecretStore.write(name: name, value: value, to: paths.secretsFile)
-    return name
+    return SecretDecision(name: name, pending: (name: name, value: value))
 }

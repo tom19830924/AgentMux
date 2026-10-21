@@ -55,6 +55,60 @@ private func scratchProject(
     return paths
 }
 
+@Suite("精靈中斷")
+struct AbortTests {
+    /// `init` used to create the directory and two empty files before asking
+    /// anything, so a Ctrl-C left a project that `am init` then refused to
+    /// touch again ("已經存在") while holding no usable gateway.
+    @Test("init 中途放棄，不留下 .agentmux/")
+    func initLeavesNothing() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("am-abort-\(UUID().uuidString)").path
+        try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
+        let paths = ProjectPaths(root: root)
+
+        // Answers run out at "模型（可留空）": the script ends mid-wizard, the
+        // same place an interrupted run would stop.
+        let ui = ScriptedPrompter([
+            "claude", "第三方 gateway", "mixroute",
+            "https://api.mixroute.ai", "輸入新的金鑰", "mixroute_key", "sk-abandoned",
+        ])
+
+        #expect(throws: (any Error).self) {
+            try addCommand(paths: paths, prompter: ui, creatingProject: true)
+        }
+        #expect(!FileManager.default.fileExists(atPath: paths.directory))
+    }
+
+    /// The key used to be written the moment it was pasted, which put a secret
+    /// on disk for a gateway that was never finished.
+    @Test("放棄時貼過的金鑰不會留在 secrets.json")
+    func abortedSecretIsNotStored() throws {
+        let paths = try scratchProject()
+        let ui = ScriptedPrompter([
+            "claude", "第三方 gateway", "mixroute",
+            "https://api.mixroute.ai", "輸入新的金鑰", "mixroute_key", "sk-abandoned",
+        ])
+
+        #expect(throws: (any Error).self) { try addCommand(paths: paths, prompter: ui) }
+        #expect(try SecretStore.load(paths.secretsFile).isEmpty)
+        #expect(try GatewayStore.load(paths.configFile).gateways.isEmpty)
+    }
+
+    @Test("放棄時不會動到既有設定")
+    func existingConfigSurvives() throws {
+        let paths = try scratchProject(
+            GatewayFile(version: 1, gateways: [Gateway(id: "keep", label: nil, agents: [:])]),
+            secrets: ["old_key": "sk-old"]
+        )
+        let ui = ScriptedPrompter(["claude", "第三方 gateway", "新增一個 gateway", "later"])
+
+        #expect(throws: (any Error).self) { try addCommand(paths: paths, prompter: ui) }
+        #expect(try GatewayStore.load(paths.configFile).gateways.map(\.id) == ["keep"])
+        #expect(try SecretStore.load(paths.secretsFile) == ["old_key": "sk-old"])
+    }
+}
+
 @Suite("精靈：第一次設定")
 struct FirstRunTests {
     @Test("跑完流程就有一個能用的 gateway，金鑰只進 secrets.json")
