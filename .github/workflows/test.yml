@@ -1,0 +1,22 @@
+name: Tests
+
+# Every push, not just releases: a net that only goes up at release time
+# catches the break long after whoever caused it has moved on.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 環境資訊
+        run: swift --version
+      - name: 測試
+        run: swift test

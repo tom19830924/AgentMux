@@ -88,3 +88,56 @@ struct LaunchStateTests {
         #expect(LaunchState.load(file).lastGateway == nil)
     }
 }
+
+/// Rules the program relies on elsewhere: break one and the failure shows up
+/// somewhere far away, so each is pinned here.
+@Suite("設定檔的規則")
+struct ConfigInvariantTests {
+    private func scratchFile() -> String {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("am-inv-\(UUID().uuidString).json").path
+    }
+
+    private func mode(of file: String) throws -> Int {
+        let attributes = try FileManager.default.attributesOfItem(atPath: file)
+        return (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0
+    }
+
+    /// The keys live in this file in the clear, so nobody else on the machine
+    /// may read it.
+    @Test("secrets.json 寫出來就是 0600")
+    func secretsAreOwnerOnly() throws {
+        let file = scratchFile()
+        try SecretStore.save(["k": "sk-value"], to: file)
+        #expect(try mode(of: file) == 0o600)
+    }
+
+    /// An atomic write replaces the file rather than rewriting it, which drops
+    /// the mode unless it is reapplied every time.
+    @Test("再寫一次仍然是 0600")
+    func permissionSurvivesRewrite() throws {
+        let file = scratchFile()
+        try SecretStore.save(["k": "sk-one"], to: file)
+        try SecretStore.write(name: "k2", value: "sk-two", to: file)
+        #expect(try mode(of: file) == 0o600)
+    }
+
+    /// `-g` and the menu both address a gateway by id, so two with the same id
+    /// would make the choice ambiguous.
+    @Test("重複的 gateway id 會被擋下，並指出是哪一個")
+    func duplicateIdsAreRejected() throws {
+        let file = scratchFile()
+        try #"{"version": 1, "gateways": [{"id": "dup", "agents": {}}, {"id": "dup", "agents": {}}]}"#
+            .write(toFile: file, atomically: true, encoding: .utf8)
+        let error = #expect(throws: AgentMuxError.self) { try GatewayStore.load(file) }
+        #expect(error?.message.contains("dup") == true)
+    }
+
+    @Test("version 不是 1 就拒絕讀取")
+    func versionIsChecked() throws {
+        let file = scratchFile()
+        try #"{"version": 99, "gateways": []}"#
+            .write(toFile: file, atomically: true, encoding: .utf8)
+        #expect(throws: AgentMuxError.self) { try GatewayStore.load(file) }
+    }
+}
