@@ -5,13 +5,13 @@ import Testing
 
 /// The key handling behind the masked prompt. It is a value type on purpose:
 /// the terminal supplies bytes, but none of these rules need one.
-@Suite("金鑰輸入")
+@Suite("Typing a key")
 struct SecretEntryTests {
     private func feed(_ entry: inout SecretEntry, _ text: String) {
         for byte in Array(text.utf8) { _ = entry.feed(byte) }
     }
 
-    @Test("一般字元會累積，遮罩長度等於字元數")
+    @Test("Ordinary characters accumulate, one dot each")
     func accumulates() {
         var entry = SecretEntry()
         feed(&entry, "sk-abc")
@@ -19,14 +19,14 @@ struct SecretEntryTests {
         #expect(entry.maskLength == 6)
     }
 
-    @Test("Enter 結束輸入並交回完整的值")
+    @Test("Enter finishes and hands back the whole value")
     func enterFinishes() {
         var entry = SecretEntry()
         feed(&entry, "sk-abc")
         #expect(entry.feed(0x0D) == .done("sk-abc"))
     }
 
-    @Test("退格刪掉一個字元")
+    @Test("Backspace removes one character")
     func backspace() {
         var entry = SecretEntry()
         feed(&entry, "sk-abc")
@@ -37,7 +37,9 @@ struct SecretEntryTests {
 
     /// A single character can span several bytes; deleting one byte at a time
     /// would leave the value holding an incomplete sequence.
-    @Test("退格刪掉整個多位元組字元，不留半截")
+    /// The CJK text here is the point: those characters are three bytes each,
+    /// so a byte-at-a-time delete would leave a broken sequence behind.
+    @Test("Backspace removes a multi-byte character whole")
     func backspaceMultibyte() {
         var entry = SecretEntry()
         feed(&entry, "金鑰")
@@ -47,7 +49,7 @@ struct SecretEntryTests {
         #expect(entry.maskLength == 1)
     }
 
-    @Test("空的時候退格不會出事")
+    @Test("Backspace on an empty entry is harmless")
     func backspaceOnEmpty() {
         var entry = SecretEntry()
         _ = entry.feed(0x7F)
@@ -55,7 +57,7 @@ struct SecretEntryTests {
         #expect(entry.feed(0x0D) == .done(""))
     }
 
-    @Test("Ctrl-U 清掉已經打的內容")
+    @Test("Ctrl-U clears what was typed")
     func clearLine() {
         var entry = SecretEntry()
         feed(&entry, "sk-abc")
@@ -64,7 +66,7 @@ struct SecretEntryTests {
         #expect(entry.maskLength == 0)
     }
 
-    @Test("Ctrl-C 與 Ctrl-D 都是取消")
+    @Test("Ctrl-C and Ctrl-D both cancel")
     func cancels() {
         var a = SecretEntry(), b = SecretEntry()
         feed(&a, "sk-abc")
@@ -72,7 +74,7 @@ struct SecretEntryTests {
         #expect(b.feed(0x04) == .cancelled)
     }
 
-    @Test("其他控制字元被忽略，不會進到值裡")
+    @Test("Other control keys never reach the value")
     func ignoresControlCharacters() {
         var entry = SecretEntry()
         feed(&entry, "sk-")
@@ -81,7 +83,7 @@ struct SecretEntryTests {
         #expect(entry.text == "sk-abc")
     }
 
-    @Test("遮罩按字元數算，不是位元組數")
+    @Test("The mask counts characters, not bytes")
     func maskCountsCharacters() {
         var entry = SecretEntry()
         feed(&entry, "金鑰abc")
@@ -89,7 +91,7 @@ struct SecretEntryTests {
         #expect(entry.maskLength == 5)
     }
 
-    @Test("換行與歸位都當作結束")
+    @Test("Both newline and carriage return finish")
     func bothNewlines() {
         var a = SecretEntry(), b = SecretEntry()
         feed(&a, "x"); feed(&b, "x")

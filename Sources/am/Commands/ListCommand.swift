@@ -8,7 +8,7 @@ func listCommand() throws -> Int32 {
     var lines = [ansi.dim(relativeToCurrentDirectory(paths.configFile)), ""]
 
     guard !config.gateways.isEmpty else {
-        Terminal.write("\(ansi.dim("還沒有設定任何 gateway，執行")) am add \(ansi.dim("新增一個"))\n")
+        Terminal.write("\(ansi.dim("No gateways yet — run")) am add \(ansi.dim("to create one"))\n")
         return 0
     }
 
@@ -27,11 +27,11 @@ func listCommand() throws -> Int32 {
             let missing = referenced.filter { secrets[$0] == nil }.sorted()
             let status: String
             if referenced.isEmpty {
-                status = ansi.dim("不需金鑰")
+                status = ansi.dim("no key needed")
             } else if missing.isEmpty {
-                status = ansi.green("金鑰已設定 (\(referenced.sorted().joined(separator: ", ")))")
+                status = ansi.green("key set (\(referenced.sorted().joined(separator: ", ")))")
             } else {
-                status = ansi.red("缺少金鑰：\(missing.joined(separator: ", "))")
+                status = ansi.red("missing key: \(missing.joined(separator: ", "))")
             }
 
             lines.append("  \(agent.id.padding(toLength: 7, withPad: " ", startingAt: 0))  \(status)")

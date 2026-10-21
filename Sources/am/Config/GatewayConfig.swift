@@ -59,8 +59,8 @@ enum GatewayStore {
     static func load(_ file: String) throws -> GatewayFile {
         guard let data = FileManager.default.contents(atPath: file) else {
             throw AgentMuxError(
-                "找不到 \(file)",
-                hint: "在專案根目錄執行 `am init` 建立設定檔"
+                "Cannot find \(file)",
+                hint: "Run `am init` in the project root to create it"
             )
         }
 
@@ -69,19 +69,19 @@ enum GatewayStore {
             config = try JSONDecoder().decode(GatewayFile.self, from: data)
         } catch {
             throw AgentMuxError(
-                "\(file) 格式有問題",
+                "\(file) is not valid",
                 hint: readableDecodingError(error)
             )
         }
 
         guard config.version == GatewayFile.currentVersion else {
-            throw AgentMuxError("\(file) 的 version 必須是 \(GatewayFile.currentVersion)")
+            throw AgentMuxError("\(file) must have version \(GatewayFile.currentVersion)")
         }
 
         var seen = Set<String>()
         for gateway in config.gateways {
             guard seen.insert(gateway.id).inserted else {
-                throw AgentMuxError("\(file) 有重複的 gateway id \"\(gateway.id)\"")
+                throw AgentMuxError("\(file) has two gateways with the id \"\(gateway.id)\"")
             }
         }
         return config
@@ -99,9 +99,9 @@ enum GatewayStore {
         guard let decoding = error as? DecodingError else { return "\(error)" }
         switch decoding {
         case let .keyNotFound(key, context):
-            return "缺少欄位 \"\(key.stringValue)\"（位置：\(path(context))）"
+            return "Missing field \"\(key.stringValue)\" (at \(path(context)))"
         case let .typeMismatch(_, context), let .valueNotFound(_, context):
-            return "\(context.debugDescription)（位置：\(path(context))）"
+            return "\(context.debugDescription) (at \(path(context)))"
         case let .dataCorrupted(context):
             return context.debugDescription
         @unknown default:
@@ -111,6 +111,6 @@ enum GatewayStore {
 
     private static func path(_ context: DecodingError.Context) -> String {
         let parts = context.codingPath.map(\.stringValue)
-        return parts.isEmpty ? "(根層)" : parts.joined(separator: ".")
+        return parts.isEmpty ? "the top level" : parts.joined(separator: ".")
     }
 }

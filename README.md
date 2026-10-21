@@ -1,40 +1,40 @@
 # AgentMux
 
-每個專案各自管理一組 AI agent gateway，啟動時從選單挑一個。
+Keep a list of AI agent gateways per project, and pick one from a menu at launch.
 
 ```console
-$ claude          # 原始用法，行為完全不變
-$ am claude       # 跳選單選 gateway
+$ claude          # unchanged; works exactly as before
+$ am claude       # pick a gateway from the menu first
 ```
 
-Swift 寫的 macOS CLI，**零外部依賴**。
+A macOS CLI written in Swift, with **no external dependencies**.
 
-## 打 `am claude` 之後發生什麼事
+## What happens when you type `am claude`
 
-三件事，然後 `am` 就不見了：
+Three things, and then `am` is gone:
 
-1. 讀 `.agentmux/gateways.json`，列出這個專案有哪些 gateway
-2. 你選一個
-3. 把自己**換成** `claude`，順便帶上那個 gateway 的設定
+1. It reads `.agentmux/gateways.json` and lists this project's gateways
+2. You pick one
+3. It **becomes** `claude`, carrying that gateway's settings
 
-第 3 步不是「啟動一個 claude」，而是這個行程直接變成 claude 本身。所以之後 Ctrl+C、結束狀態、終端機控制全都是 claude 的事，`am` 已經不在了，不會卡在中間。
+Step 3 is not "starts a claude": this process turns into claude itself. Ctrl-C, the exit status and control of the terminal are all claude's from then on, with no `am` left in the middle to get in the way.
 
-金鑰不會被帶在命令列上（那個 `ps` 看得到）。帶過去的是一句「需要金鑰時來問我」，claude 真的要用的時候才回頭跟 `am` 拿。
+The key is not carried on the command line, where `ps` could read it. What goes across is a line saying "ask me when you need the key", and claude comes back for it only when it actually does.
 
-## 為什麼需要它
+## Why it exists
 
-`.claude/settings.json` 一個專案只能有一份，只能表達一組設定 —— 沒辦法「這個專案可用 A、B、C，每次啟動挑一個」。AgentMux 把 gateway 清單放進 `.agentmux/gateways.json`，啟動時才注入。
+A project has one `.claude/settings.json`, which can express one set of settings — there is no way to say "this project can use A, B or C, pick one each time". AgentMux keeps the list in `.agentmux/gateways.json` and injects a choice at launch.
 
-**它不改寫你任何既有的設定檔**，只在啟動那一瞬間從更高的優先序蓋過去：
+**It rewrites none of your existing settings files.** It overrides them for one launch, from a layer above:
 
-| Agent | 機制 | 蓋過 |
+| Agent | Mechanism | Overrides |
 |---|---|---|
 | Claude Code | `--settings` + `apiKeyHelper` | `.claude/settings.json` |
-| Codex CLI | `-c` 覆寫 | `~/.codex/config.toml`、專案 `.codex/config.toml` |
+| Codex CLI | `-c` overrides | `~/.codex/config.toml`, a project's `.codex/config.toml` |
 
-所以直接打 `claude` 或 `codex` 時行為與安裝前完全一致。
+So running `claude` or `codex` directly behaves exactly as it did before you installed this.
 
-## 安裝
+## Install
 
 ### Homebrew
 
@@ -44,70 +44,70 @@ $ brew trust tom19830924/tap
 $ brew install am
 ```
 
-中間那行是 Homebrew 對第三方 tap 的要求 —— formula 是會被執行的 Ruby 程式碼，載入前要你明確點頭。做過一次之後，這個 tap 裡的其他工具都不用再信任。
+The middle line is what Homebrew asks of every third-party tap: a formula is Ruby that will be executed, so you have to say so explicitly. Once done, anything else from this tap installs without asking again.
 
-更新：
+To update:
 
 ```console
 $ brew update && brew upgrade am
 ```
 
-`brew update` 會把 tap 倉庫拉到最新，少了它 `upgrade` 看不到新版本。
+`brew update` is what pulls the tap itself; without it `upgrade` cannot see a new version.
 
-### 自己編譯
+### From source
 
 ```console
 $ git clone https://github.com/tom19830924/AgentMux.git
 $ cd AgentMux
-$ swift build -c release        # 產出 .build/release/am
+$ swift build -c release        # produces .build/release/am
 $ swift test
 ```
 
-需要 Xcode 16 以上（`Package.swift` 是 swift-tools-version 6.0）。也可以直接用 Xcode 開啟 `Package.swift`。
+Needs Xcode 16 or later (`Package.swift` is swift-tools-version 6.0). Opening `Package.swift` in Xcode works too.
 
-放進 PATH：
+To put it on your PATH:
 
 ```console
 $ install -m 755 .build/release/am /usr/local/bin/am
 ```
 
-產出的是單一執行檔，macOS 內建 Swift runtime，複製到別台 Mac 就能跑，不需要安裝任何東西。
+What comes out is a single executable. macOS ships the Swift runtime, so copying it to another Mac is enough — nothing to install.
 
-想編出跟發行版同樣的 universal binary：
+For the same universal binary the releases ship:
 
 ```console
 $ swift build -c release --arch arm64 --arch x86_64
 ```
 
-自己編的執行檔 `am --version` 會回報 `dev`。版本號只在發版流程中寫入，本機編譯的不是發行版本，不會冒充成某個版號。
+A binary you built yourself reports `am --version` as `dev`. The version is written during the release only: a local build is not a release and does not claim to be one.
 
-## 使用
+## Using it
 
 ```console
-$ am init                   # 建立 .agentmux/ 並走完設定流程
-$ am add                    # 新增 gateway，或替既有 gateway 加上另一個 agent
-$ am ls                     # 列出這個專案的 gateway
-$ am claude                 # 跳選單，選完直接進 Claude Code
-$ am claude -g my-gateway     # 指定 gateway，跳過選單
-$ am codex -- --resume      # -- 之後的參數原樣轉給 codex
-$ am claude --dry-run       # 印出實際會注入什麼，不啟動
+$ am init                   # create .agentmux/ and walk through the setup
+$ am add                    # add a gateway, or another agent to one you have
+$ am ls                     # list this project's gateways
+$ am claude                 # pick from the menu, then straight into Claude Code
+$ am claude -g my-gateway   # name the gateway and skip the menu
+$ am codex -- --resume      # everything after -- is handed to codex untouched
+$ am claude --dry-run       # print what would be injected, without starting
 ```
 
-## 設定檔
+## The config files
 
 ```
-專案/
+project/
 └─ .agentmux/
-   ├─ gateways.json   # gateway 清單，可 commit（不含金鑰）
-   ├─ secrets.json    # 金鑰，0600
-   └─ state.json      # 上次選的 gateway
+   ├─ gateways.json   # the gateways; safe to commit (no keys in it)
+   ├─ secrets.json    # the keys, 0600
+   └─ state.json      # which gateway you picked last
 ```
 
-裡面沒有任何絕對路徑，整個目錄複製到另一個專案就能直接用。
+Nothing in them is an absolute path, so copying the directory to another project just works.
 
-AgentMux **不會建立或修改任何 `.gitignore`** —— 要不要忽略 `.agentmux/` 由專案自己決定。它含有明文金鑰，所以通常應該忽略掉。
+AgentMux **never creates or edits a `.gitignore`** — whether to ignore `.agentmux/` is the project's decision. It holds keys in the clear, so usually it should be ignored.
 
-`am init` 與 `am add` 會互動式問完必要資訊並直接寫好。用 `${secret:NAME}` 引用 `secrets.json` 裡的金鑰，啟動時才展開：
+`am init` and `am add` ask what they need and write the file for you. Use `${secret:NAME}` to reference a key from `secrets.json`; it is expanded at launch and nowhere else:
 
 ```json
 {
@@ -136,76 +136,73 @@ AgentMux **不會建立或修改任何 `.gitignore`** —— 要不要忽略 `.a
 }
 ```
 
-gateway 只有一個名稱，選單上顯示它、`-g` 也用它（想讓選單顯示別的字，可以手加 `"label"`）。
+## One key, several agents
 
-## 同一把金鑰給多個 agent
-
-常見情況是同一個 provider 的 token 同時要給 Claude 和 Codex 用。先設好其中一個，之後：
+The usual case is one provider's token serving both Claude and Codex. Set up the first, then:
 
 ```console
 $ am add
-? 要設定哪個 agent？                   Codex CLI
-? 要連到哪裡？                         第三方 gateway
-? 要把 Codex CLI 加到哪個 gateway？    my-gateway (已有 claude)
-? Base URL                             https://api.example.com/v1
-? API 形式                             chat
-? 金鑰要用哪一把？                     沿用 my-gateway_key ← 預設就選這個，不用重貼
+? Which agent?                          Codex CLI
+? Connect to what?                      A third-party gateway
+? Add Codex CLI to which gateway?       my-gateway (has claude)
+? Base URL                              https://api.example.com/v1
+? API shape                             chat
+? Which key?                            Reuse my-gateway_key ← already selected; no repaste
 ```
 
-換成另一家 provider 時選「輸入新的金鑰」，它會存成另一個名稱，兩把互不影響。
+For a different provider, choose "Enter a new key" and it is stored under its own name; the two never interfere.
 
-選「官方」的話不用取名也不用填端點 —— 它固定叫 `anthropic` / `openai`，只會把 base URL 與 token 設成空字串來中和掉專案的設定，讓 CLI 回到自己原本的登入。
+Choosing the agent's own login needs neither a name nor an endpoint — it is always called `anthropic` or `openai`, and it only sets the base URL and token to empty strings, cancelling whatever the project pinned so the CLI falls back to its own login.
 
-`am init` 與 `am add` 都不會讀取 `.claude/settings.json` 或 `.codex/config.toml` —— 那些是給原本的 CLI 用的，AgentMux 只管自己的設定檔。
+Neither `am init` nor `am add` reads `.claude/settings.json` or `.codex/config.toml`. Those belong to the CLIs; AgentMux only manages its own files.
 
-## 金鑰怎麼被保護
+## How the key is protected
 
-- **金鑰不落地、也不進命令列。** `ps aux` 任何人都讀得到命令列，所以兩個 agent 都不把金鑰放在那裡：
-  - **Claude**：`--settings` 的 JSON 裡 `ANTHROPIC_AUTH_TOKEN` 設成空字串（這會取消掉 `.claude/settings.json` 的值），另外用 `apiKeyHelper` 指定一個取金鑰的指令。Claude Code 需要金鑰時才執行它，值經管線傳回，不寫入任何檔案。
-  - **Codex**：`env_key` 指向一個環境變數，金鑰只存在被啟動行程的環境裡。
-- 唯一存放金鑰的地方是 `.agentmux/secrets.json`（0600）。
-- **執行期不會寫任何東西到專案外**，也不產生暫存檔。
-- 若某個 gateway 把金鑰寫進 `args`，啟動前會被擋下並報錯。
-- `am ls` 只顯示「已設定 / 缺少」，`--dry-run` 只顯示金鑰名稱。
+- **It never lands on disk for a launch, and never reaches a command line.** Anyone can read a command line out of `ps aux`, so neither agent gets the key that way:
+  - **Claude**: the JSON passed to `--settings` sets `ANTHROPIC_AUTH_TOKEN` to an empty string, which cancels whatever `.claude/settings.json` holds, and names an `apiKeyHelper` command. Claude Code runs it only when it needs a key; the value comes back through a pipe and is written nowhere.
+  - **Codex**: `env_key` names an environment variable, so the key exists only in the launched process's environment.
+- The one place a key is stored is `.agentmux/secrets.json`, mode 0600.
+- **Nothing is written outside the project at runtime**, and no temporary files are created.
+- A gateway that would put a key into `args` is refused before anything starts.
+- `am ls` reports only "set" or "missing", and `--dry-run` shows a key's name, never its value.
 
-## 發版
+## Releasing
 
-推一個 `v` 開頭的 tag，其餘自動完成：
+Push a tag starting with `v`; the rest happens on its own:
 
 ```console
-$ git tag v0.1.2
-$ git push origin v0.1.2
+$ git tag v0.1.3
+$ git push origin v0.1.3
 ```
 
-GitHub Actions 接手：
+GitHub Actions takes it from there:
 
-1. 把 tag 的版本號寫進 `Sources/am/Version.swift`
-2. 跑測試
-3. 編譯 universal binary（arm64 + x86_64）
-4. 建立 GitHub Release，附上 `am-<版本>-macos-universal.tar.gz`
-5. 算出 sha256，重新產生 `tom19830924/homebrew-tap` 的 `Formula/am.rb` 並推送
+1. Writes the tag's version into `Sources/am/Version.swift`
+2. Runs the tests
+3. Builds the universal binary (arm64 + x86_64)
+4. Creates the GitHub Release with `am-<version>-macos-universal.tar.gz`
+5. Computes the sha256, regenerates `Formula/am.rb` in `tom19830924/homebrew-tap`, and pushes it
 
-使用者 `brew update && brew upgrade am` 就拿得到。
+Users get it with `brew update && brew upgrade am`.
 
-### 版本號只有一個來源
+### One place decides the version
 
-`Version.swift` 裡放的是佔位符 `dev`，真正的版本號只存在於 git tag，編譯前才被寫進去。發行的執行檔因此不可能與它的 tag 不一致 —— 這不是靠檢查維持的，而是結構上只有一個數字在流動。
+`Version.swift` holds the placeholder `dev`. The real version exists only as a git tag and is written in just before the build, so a published binary cannot disagree with the tag it was published under — not because something checks, but because only one number is ever in play.
 
-寫入沒生效、或編譯出來的執行檔回報的版本與 tag 不符，workflow 都會中止，不會發出任何東西。
+If the write matches nothing, or the built binary reports a version other than the tag, the workflow stops and nothing is published.
 
-### 先試跑，不發布
+### Rehearse without publishing
 
-Actions 頁面的 **Release** workflow 有 Run workflow 按鈕。填上版本號、保持「只編譯打包」勾選，就會跑完測試與編譯，但不碰 Release 也不碰 tap，產物留成 artifact 供下載檢查。
+The **Release** workflow has a Run workflow button. Give it a version, leave "Build and package only" ticked, and it runs the tests and the build without touching the Release or the tap, leaving the result downloadable as an artifact.
 
-正式發版請用推 tag 的方式，版本號才會和 commit 綁在一起。
+Use a tag for a real release, so the version stays tied to a commit.
 
-### 維護者須知
+### For whoever maintains this
 
-- 每次 push 都會跑 `Tests` workflow，不必等到發版才知道壞了
-- `Formula/am.rb` 由 CI 產生，不要手動編輯 `homebrew-tap`
-- CI 推送 formula 用的是 `TAP_WRITER` 這個 repo secret（fine-grained token，範圍只有 `homebrew-tap`、權限只有 Contents 寫入）。它過期的徵兆是發版卡在「取出 tap 倉庫」那一步，Release 照常產出但 formula 停在舊版
+- The `Tests` workflow runs on every push, so a break shows up long before a release
+- `Formula/am.rb` is generated by CI; don't hand-edit `homebrew-tap`
+- CI pushes the formula with the `TAP_WRITER` repo secret: a fine-grained token scoped to `homebrew-tap` alone, with write access to contents and nothing else. When it expires, a release stops at "Check out the tap" — the Release still appears, but the formula quietly stays on the old version
 
+## Implementation note
 
-## 實作筆記
-
-`am claude` 不是衍生子行程，而是用 `execvp` **取代**自己。選完 gateway、設好環境變數之後，這個行程就變成 agent 本身 —— exit code、Ctrl-C、終端機前景控制全部交給作業系統，沒有需要轉發的東西，`am` 也不可能比 agent 活得久。
+`am claude` does not spawn a child. Once it has a gateway and the environment is set, it `execvp`s and **replaces itself** with the agent. The exit status, Ctrl-C and control of the terminal all pass to the operating system's new occupant of that process: there is nothing left to forward, and no way for `am` to outlive the agent.

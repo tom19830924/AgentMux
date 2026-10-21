@@ -3,7 +3,7 @@ import Testing
 
 @testable import am
 
-@Suite("設定檔的錯誤訊息")
+@Suite("Config errors")
 struct ConfigErrorTests {
     private func write(_ contents: String) throws -> String {
         let file = FileManager.default.temporaryDirectory
@@ -14,28 +14,28 @@ struct ConfigErrorTests {
 
     /// A decoding error on its own says nothing a user can act on, so the
     /// message names the field and where it sits.
-    @Test("缺少欄位時指出是哪個欄位")
+    @Test("A missing field is named")
     func namesTheMissingField() throws {
         let file = try write(#"{"version": 1, "gateways": [{"agents": {}}]}"#)
         let error = #expect(throws: AgentMuxError.self) { try GatewayStore.load(file) }
-        #expect(error?.hint?.contains("缺少欄位 \"id\"") == true)
+        #expect(error?.hint?.contains("Missing field \"id\"") == true)
     }
 
-    @Test("型別不符時指出位置")
+    @Test("A type mismatch says where")
     func reportsTypeMismatch() throws {
-        let file = try write(#"{"version": "一", "gateways": []}"#)
+        let file = try write(#"{"version": "one", "gateways": []}"#)
         let error = #expect(throws: AgentMuxError.self) { try GatewayStore.load(file) }
         #expect(error?.hint?.contains("version") == true)
     }
 
-    @Test("secrets.json 不是物件時給出可照做的提示")
+    @Test("A malformed secrets.json says what shape it needs")
     func secretsMustBeAnObject() throws {
         let file = try write("[]")
         let error = #expect(throws: AgentMuxError.self) { try SecretStore.load(file) }
-        #expect(error?.hint?.contains("JSON 物件") == true)
+        #expect(error?.hint?.contains("JSON object") == true)
     }
 
-    @Test("只有舊版 YAML 時，提示改用 JSON 而不是說找不到設定")
+    @Test("A leftover YAML config gets its own message")
     func legacyYAMLGetsItsOwnMessage() throws {
         let root = try scratchDirectory()
         let paths = ProjectPaths(root: root)
@@ -49,9 +49,9 @@ struct ConfigErrorTests {
     }
 }
 
-@Suite("上次選過的 gateway")
+@Suite("Remembering the last gateway")
 struct LaunchStateTests {
-    @Test("記住之後讀得回來，而且分 agent 記")
+    @Test("Remembered per agent, and read back")
     func remembersPerAgent() throws {
         let file = FileManager.default.temporaryDirectory
             .appendingPathComponent("am-state-\(UUID().uuidString).json").path
@@ -64,7 +64,7 @@ struct LaunchStateTests {
         #expect(state.lastGateway?["codex"] == "beta")
     }
 
-    @Test("同一個 agent 再記一次會覆蓋")
+    @Test("Remembering again replaces the old choice")
     func overwritesTheSameAgent() throws {
         let file = FileManager.default.temporaryDirectory
             .appendingPathComponent("am-state-\(UUID().uuidString).json").path
@@ -74,24 +74,24 @@ struct LaunchStateTests {
     }
 
     /// Remembering is a convenience, never a reason to fail a launch.
-    @Test("寫不進去也不會讓啟動失敗")
+    @Test("A write that fails never fails the launch")
     func writeFailureIsSwallowed() {
         LaunchState.remember(gateway: "alpha", for: .claude, in: "/no/such/directory/state.json")
         #expect(LaunchState.load("/no/such/directory/state.json").lastGateway == nil)
     }
 
-    @Test("檔案壞掉時當作沒有紀錄，不是整個爆掉")
+    @Test("A corrupt file reads as no memory at all")
     func corruptStateIsIgnored() throws {
         let file = FileManager.default.temporaryDirectory
             .appendingPathComponent("am-state-\(UUID().uuidString).json").path
-        try "{ 壞掉的".write(toFile: file, atomically: true, encoding: .utf8)
+        try "{ not json".write(toFile: file, atomically: true, encoding: .utf8)
         #expect(LaunchState.load(file).lastGateway == nil)
     }
 }
 
 /// Rules the program relies on elsewhere: break one and the failure shows up
 /// somewhere far away, so each is pinned here.
-@Suite("設定檔的規則")
+@Suite("Config rules")
 struct ConfigInvariantTests {
     private func scratchFile() -> String {
         FileManager.default.temporaryDirectory
@@ -105,7 +105,7 @@ struct ConfigInvariantTests {
 
     /// The keys live in this file in the clear, so nobody else on the machine
     /// may read it.
-    @Test("secrets.json 寫出來就是 0600")
+    @Test("secrets.json is written 0600")
     func secretsAreOwnerOnly() throws {
         let file = scratchFile()
         try SecretStore.save(["k": "sk-value"], to: file)
@@ -114,7 +114,7 @@ struct ConfigInvariantTests {
 
     /// An atomic write replaces the file rather than rewriting it, which drops
     /// the mode unless it is reapplied every time.
-    @Test("再寫一次仍然是 0600")
+    @Test("It is still 0600 after a rewrite")
     func permissionSurvivesRewrite() throws {
         let file = scratchFile()
         try SecretStore.save(["k": "sk-one"], to: file)
@@ -124,7 +124,7 @@ struct ConfigInvariantTests {
 
     /// `-g` and the menu both address a gateway by id, so two with the same id
     /// would make the choice ambiguous.
-    @Test("重複的 gateway id 會被擋下，並指出是哪一個")
+    @Test("Duplicate gateway ids are refused, and named")
     func duplicateIdsAreRejected() throws {
         let file = scratchFile()
         try #"{"version": 1, "gateways": [{"id": "dup", "agents": {}}, {"id": "dup", "agents": {}}]}"#
@@ -133,7 +133,7 @@ struct ConfigInvariantTests {
         #expect(error?.message.contains("dup") == true)
     }
 
-    @Test("version 不是 1 就拒絕讀取")
+    @Test("An unknown version is refused")
     func versionIsChecked() throws {
         let file = scratchFile()
         try #"{"version": 99, "gateways": []}"#

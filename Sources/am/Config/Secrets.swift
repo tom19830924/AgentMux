@@ -29,7 +29,7 @@ final class SecretResolver {
             result += rest[rest.startIndex..<range.lowerBound]
             let afterOpen = rest[range.upperBound...]
             guard let close = afterOpen.firstIndex(of: "}") else {
-                throw AgentMuxError("設定裡有沒有結尾的 ${secret:...}")
+                throw AgentMuxError("A ${secret:...} reference in the config is never closed")
             }
             let name = String(afterOpen[afterOpen.startIndex..<close])
             result += try value(of: name)
@@ -48,8 +48,8 @@ final class SecretResolver {
     func value(of name: String) throws -> String {
         guard let value = secrets[name] else {
             throw AgentMuxError(
-                "找不到 secret \"\(name)\"",
-                hint: "請在 \(secretsFile) 加上 \"\(name)\": \"<金鑰>\""
+                "No secret named \"\(name)\"",
+                hint: "Add \"\(name)\": \"<key>\" to \(secretsFile)"
             )
         }
         if !value.isEmpty { disclosed[value] = name }
@@ -95,8 +95,8 @@ enum SecretStore {
             return try JSONDecoder().decode([String: String].self, from: data)
         } catch {
             throw AgentMuxError(
-                "無法解析 \(file)",
-                hint: "這個檔案必須是一個 JSON 物件，例如 { \"my-gateway_key\": \"sk-...\" }"
+                "Cannot read \(file)",
+                hint: "It has to be a JSON object, for example { \"my-gateway_key\": \"sk-...\" }"
             )
         }
     }

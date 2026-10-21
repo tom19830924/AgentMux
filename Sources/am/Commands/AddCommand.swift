@@ -74,27 +74,27 @@ func addCommand(
     let scripted = prompter != nil
     if !scripted, !Terminal.isInteractive {
         throw AgentMuxError(
-            "這個指令需要互動式終端機",
-            hint: "請直接在終端機裡執行，或手動編輯 \(paths.configFile)"
+            "This command needs an interactive terminal",
+            hint: "Run it in a terminal, or edit \(paths.configFile) by hand"
         )
     }
     let ui = prompter ?? TerminalPrompter()
 
     var config = GatewayFile.empty()
     if !creatingProject { config = try GatewayStore.load(paths.configFile) }
-    ui.intro(creatingProject ? "設定第一個 gateway" : "新增 gateway 設定")
+    ui.intro(creatingProject ? "Set up the first gateway" : "Add a gateway")
 
     let agent = try Agent.named(
-        try ui.select("要設定哪個 agent？", Agent.allCases.map {
+        try ui.select("Which agent?", Agent.allCases.map {
             Choice(value: $0.id, label: $0.displayName)
         })
     )
 
     // Asked first: the answer decides whether a name is needed at all. The
     // official entry names itself, since there is only ever one of it per agent.
-    let mode = GatewayMode(rawValue: try ui.select("要連到哪裡？", [
-        Choice(value: GatewayMode.custom.rawValue, label: "第三方 gateway", hint: "自訂端點，需要 base URL"),
-        Choice(value: GatewayMode.official.rawValue, label: "\(agent.displayName) 官方", hint: "用這個 CLI 原本的登入"),
+    let mode = GatewayMode(rawValue: try ui.select("Connect to what?", [
+        Choice(value: GatewayMode.custom.rawValue, label: "A third-party gateway", hint: "Your own endpoint; needs a base URL"),
+        Choice(value: GatewayMode.official.rawValue, label: "\(agent.displayName) itself", hint: "Use the CLI's own login"),
     ]))!
 
     let gatewayID = try resolveGateway(
@@ -110,17 +110,17 @@ func addCommand(
             placeholder: agent == .codex ? "https://api.example.com/v1" : "https://api.example.com",
             defaultValue: nil
         ) { value in
-            if value.isEmpty { return "這一項必填" }
+            if value.isEmpty { return "Required" }
             guard let url = URL(string: value), url.scheme != nil, url.host != nil else {
-                return "請輸入完整的網址，例如 https://api.example.com"
+                return "Enter a full URL, for example https://api.example.com"
             }
             return nil
         }
 
         if agent == .codex {
-            wireAPI = try ui.select("API 形式", [
-                Choice(value: "chat", label: "chat", hint: "/v1/chat/completions，多數第三方相容端點"),
-                Choice(value: "responses", label: "responses", hint: "/v1/responses，OpenAI 原生"),
+            wireAPI = try ui.select("API shape", [
+                Choice(value: "chat", label: "chat", hint: "/v1/chat/completions, what most third parties speak"),
+                Choice(value: "responses", label: "responses", hint: "/v1/responses, OpenAI's own"),
             ])
         }
     }
@@ -138,7 +138,7 @@ func addCommand(
     )
 
     guard let index = config.gateways.firstIndex(where: { $0.id == gatewayID }) else {
-        throw AgentMuxError("找不到 gateway \"\(gatewayID)\"")
+        throw AgentMuxError("No gateway named \"\(gatewayID)\"")
     }
     config.gateways[index].agents[agent.id] = agentConfig
 
@@ -150,8 +150,8 @@ func addCommand(
             atPath: paths.directory, withIntermediateDirectories: true
         )
         Terminal.write(
-            "\(ansi.green("已建立")) \(relativeToCurrentDirectory(paths.directory))/"
-                + "\(ansi.dim("（gateways.json、secrets.json 0600）"))\n"
+            "\(ansi.green("Created")) \(relativeToCurrentDirectory(paths.directory))/"
+                + "\(ansi.dim(" (gateways.json, secrets.json 0600)"))\n"
         )
     }
     if let pending = secret.pending {
@@ -161,8 +161,8 @@ func addCommand(
     }
     try GatewayStore.save(config, to: paths.configFile)
 
-    ui.outro("\(ansi.green("已設定")) \(gatewayID) / \(agent.id)　"
-        + ansi.dim("試試 am \(agent.id)"))
+    ui.outro("\(ansi.green("Ready")) \(gatewayID) / \(agent.id)   "
+        + ansi.dim("try am \(agent.id)"))
     return 0
 }
 
@@ -190,13 +190,13 @@ private func resolveGateway(
         Choice(
             value: gateway.id, label: gateway.id,
             hint: gateway.agents.keys.sorted().joined(separator: ", ").isEmpty
-                ? "尚未設定任何 agent"
+                ? "No agents set up yet"
                 : gateway.agents.keys.sorted().joined(separator: ", ")
         )
     }
-    choices.append(Choice(value: newGatewaySentinel, label: "新增一個 gateway"))
+    choices.append(Choice(value: newGatewaySentinel, label: "Add a new gateway"))
 
-    let chosen = try ui.select("要把 \(agent.displayName) 加到哪個 gateway？", choices)
+    let chosen = try ui.select("Add \(agent.displayName) to which gateway?", choices)
     if chosen == newGatewaySentinel {
         let name = try askGatewayName(existing: existing, ui: ui)
         config.gateways.append(Gateway(id: name, label: nil, agents: [:]))
@@ -209,23 +209,23 @@ private func resolveGateway(
 
 private func confirmOverwrite(_ gateway: Gateway, agent: Agent, ui: Prompter) throws {
     guard gateway.agents[agent.id] != nil else { return }
-    let answer = try ui.select("gateway \"\(gateway.id)\" 已經有 \(agent.id) 的設定了", [
-        Choice(value: "yes", label: "覆蓋掉重新設定"),
-        Choice(value: "no", label: "取消"),
+    let answer = try ui.select("\"\(gateway.id)\" already has \(agent.id) set up", [
+        Choice(value: "yes", label: "Replace it"),
+        Choice(value: "no", label: "Cancel"),
     ])
     if answer == "no" { throw CancelledError() }
 }
 
 private func askGatewayName(existing: [String], ui: Prompter) throws -> String {
-    try ui.text("gateway 名稱", placeholder: "my-gateway", defaultValue: nil) { value in
-        if value.isEmpty { return "這一項必填" }
+    try ui.text("Gateway name", placeholder: "my-gateway", defaultValue: nil) { value in
+        if value.isEmpty { return "Required" }
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-"))
         if value.rangeOfCharacter(from: allowed.inverted) != nil
             || !(value.first?.isLetter ?? false) && !(value.first?.isNumber ?? false)
         {
-            return "只能用英數字、底線與連字號（選單和 -g 都會用這個名稱）"
+            return "Letters, digits, underscores and hyphens only (the menu and -g both use this)"
         }
-        if existing.contains(value) { return "已經有一個叫 \"\(value)\" 的 gateway 了" }
+        if existing.contains(value) { return "There is already a gateway called \"\(value)\"" }
         return nil
     }
 }
@@ -253,32 +253,32 @@ private func chooseSecret(
 
     var choices = known.map { name in
         Choice(
-            value: name, label: "沿用 \(name)",
-            hint: own.contains(name) ? "這個 gateway 已經在用"
-                : stored[name] != nil ? "已設定" : "被引用但還沒填值"
+            value: name, label: "Reuse \(name)",
+            hint: own.contains(name) ? "Already used by this gateway"
+                : stored[name] != nil ? "Stored" : "Referenced, but has no value yet"
         )
     }
-    choices.append(Choice(value: newSecretSentinel, label: "輸入新的金鑰"))
+    choices.append(Choice(value: newSecretSentinel, label: "Enter a new key"))
     choices.append(Choice(
-        value: noSecretSentinel, label: "不需要金鑰",
-        hint: mode == .official ? "用 CLI 原本的登入" : nil
+        value: noSecretSentinel, label: "No key needed",
+        hint: mode == .official ? "Uses the CLI's own login" : nil
     ))
 
     let initial = own.sorted().first ?? (mode == .official ? noSecretSentinel : choices[0].value)
-    let chosen = try ui.select("金鑰要用哪一把？", choices, initial: initial)
+    let chosen = try ui.select("Which key?", choices, initial: initial)
 
     if chosen == noSecretSentinel { return SecretDecision(name: nil, pending: nil) }
     if chosen != newSecretSentinel { return SecretDecision(name: chosen, pending: nil) }
 
     let name = try ui.text(
-        "金鑰名稱（在 secrets.json 裡的鍵名）",
+        "Name for this key (the key name inside secrets.json)",
         placeholder: "\(gatewayID)_key", defaultValue: "\(gatewayID)_key"
     ) { value in
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-."))
         return value.rangeOfCharacter(from: allowed.inverted) != nil
-            ? "只能用英數字、底線、點與連字號" : nil
+            ? "Letters, digits, underscores, dots and hyphens only" : nil
     }
 
-    let value = try ui.password("貼上 \(name) 的值")
+    let value = try ui.password("Paste the value for \(name)")
     return SecretDecision(name: name, pending: (name: name, value: value))
 }

@@ -6,29 +6,29 @@ import Testing
 /// What the user actually sees. These drive the real binary through a
 /// pseudo-terminal, so `isatty` is true and raw mode takes effect — the escape
 /// sequences and the signal handling are exercised rather than described.
-@Suite("終端機畫面")
+@Suite("What the screen shows", .serialized)
 struct TerminalUITests {
     /// Answers up to and including the key prompt, leaving the cursor there.
     private func sessionAtKeyPrompt() throws -> (TerminalSession, String) {
         let root = try scratchDirectory()
         let session = try TerminalSession(["init"], in: root)
-        try session.wait(for: "要設定哪個 agent")
+        try session.wait(for: "Which agent?")
         session.send("\r")
-        try session.wait(for: "要連到哪裡")
+        try session.wait(for: "Connect to what?")
         session.send("\r")
-        try session.wait(for: "gateway 名稱")
+        try session.wait(for: "Gateway name")
         session.send("acme\r")
         try session.wait(for: "Base URL")
         session.send("https://api.example.com\r")
-        try session.wait(for: "金鑰要用哪一把")
+        try session.wait(for: "Which key?")
         session.send("\r")
-        try session.wait(for: "金鑰名稱")
+        try session.wait(for: "Name for this key")
         session.send("\r")
-        try session.wait(for: "貼上 acme_key 的值")
+        try session.wait(for: "Paste the value for acme_key")
         return (session, root)
     }
 
-    @Test("金鑰以圓點顯示，原文不出現在畫面上")
+    @Test("The key is drawn as dots and never appears")
     func keyIsMasked() throws {
         let (session, _) = try sessionAtKeyPrompt()
         session.send("sk-SECRET")
@@ -38,7 +38,7 @@ struct TerminalUITests {
         session.interrupt()
     }
 
-    @Test("退格會減少一個圓點")
+    @Test("Backspace takes away a dot")
     func backspaceRemovesADot() throws {
         let (session, _) = try sessionAtKeyPrompt()
         session.send("abcd")
@@ -54,34 +54,34 @@ struct TerminalUITests {
     /// The menu hides the cursor. A signal unwinds nothing, so without the
     /// handler the cursor would stay hidden in the user's shell afterwards —
     /// and unlike the terminal modes, no shell puts it back.
-    @Test("Ctrl-C 之後游標會被還原")
+    @Test("The cursor comes back after Ctrl-C")
     func cursorComesBackAfterInterrupt() throws {
         let root = try scratchDirectory()
         let session = try TerminalSession(["init"], in: root)
-        try session.wait(for: "要設定哪個 agent")
-        #expect(session.raw.contains("\u{1B}[?25l"))  // 選單隱藏了游標
+        try session.wait(for: "Which agent?")
+        #expect(session.raw.contains("\u{1B}[?25l"))  // the menu hid the cursor
 
         session.clearCapture()
         session.interrupt()
         try session.wait(for: "\u{1B}[?25h")
     }
 
-    @Test("中斷之後不留下任何檔案")
+    @Test("An interrupt leaves no files behind")
     func interruptLeavesNothing() throws {
         let root = try scratchDirectory()
         let session = try TerminalSession(["init"], in: root)
-        try session.wait(for: "要設定哪個 agent")
+        try session.wait(for: "Which agent?")
         session.interrupt()
         _ = try session.waitUntilExit()
 
         #expect(!FileManager.default.fileExists(atPath: ProjectPaths(root: root).directory))
     }
 
-    @Test("在真的終端機上走完 init，設定檔才出現")
+    @Test("init through a real terminal writes only at the end")
     func fullRunThroughARealTerminal() throws {
         let (session, root) = try sessionAtKeyPrompt()
         session.send("sk-live\r")
-        try session.wait(for: "已設定")
+        try session.wait(for: "Ready")
         #expect(try session.waitUntilExit() == 0)
 
         let paths = ProjectPaths(root: root)
@@ -89,15 +89,15 @@ struct TerminalUITests {
         #expect(try GatewayStore.load(paths.configFile).gateways.map(\.id) == ["acme"])
     }
 
-    // MARK: 選單導航
+    // MARK: Menu navigation
 
     private func menuSession() throws -> TerminalSession {
         let session = try TerminalSession(["init"], in: try scratchDirectory())
-        try session.wait(for: "要設定哪個 agent")
+        try session.wait(for: "Which agent?")
         return session
     }
 
-    @Test("方向鍵往下換選項")
+    @Test("Arrow down moves the selection")
     func arrowDownMovesTheSelection() throws {
         let session = try menuSession()
         session.send("\u{1B}[B\r")
@@ -106,7 +106,7 @@ struct TerminalUITests {
     }
 
     /// Two items, so pressing up from the first lands on the last.
-    @Test("從第一項往上會繞回最後一項")
+    @Test("Arrow up from the first wraps to the last")
     func arrowUpWrapsAround() throws {
         let session = try menuSession()
         session.send("\u{1B}[A\r")
@@ -114,7 +114,7 @@ struct TerminalUITests {
         session.interrupt()
     }
 
-    @Test("j 與 k 和方向鍵一樣可以移動")
+    @Test("j and k move like the arrow keys")
     func viKeysMove() throws {
         let session = try menuSession()
         session.send("j\r")
@@ -122,19 +122,19 @@ struct TerminalUITests {
         session.interrupt()
     }
 
-    @Test("輸入不合規則會當場說明並重問")
+    @Test("A rejected answer is explained and asked again")
     func validationAsksAgain() throws {
         let session = try menuSession()
         session.send("\r")
-        try session.wait(for: "要連到哪裡")
+        try session.wait(for: "Connect to what?")
         session.send("\r")
-        try session.wait(for: "gateway 名稱")
+        try session.wait(for: "Gateway name")
 
-        session.send("有空格 的名字\r")
-        try session.wait(for: "只能用英數字")
+        session.send("has a space\r")
+        try session.wait(for: "Letters, digits")
         // The rejection and the re-ask land together, so count the prompt
         // rather than waiting for a second one to arrive.
-        let asked = session.plain.components(separatedBy: "gateway 名稱").count - 1
+        let asked = session.plain.components(separatedBy: "Gateway name").count - 1
         #expect(asked >= 2)
 
         session.send("fine-name\r")

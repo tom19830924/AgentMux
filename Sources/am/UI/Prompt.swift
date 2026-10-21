@@ -44,7 +44,7 @@ struct TerminalPrompter: Prompter {
     }
 
     func select(_ message: String, _ choices: [Choice], initial: String?) throws -> String {
-        guard !choices.isEmpty else { throw AgentMuxError("沒有可選的項目") }
+        guard !choices.isEmpty else { throw AgentMuxError("Nothing to choose from") }
         var index = choices.firstIndex { $0.value == initial } ?? 0
 
         Terminal.write("\(ansi.cyan("◆"))  \(message)\n")
@@ -119,7 +119,7 @@ struct TerminalPrompter: Prompter {
             let line = try Terminal.readSecret(redrawing: prefix)
             Terminal.write("\n")
             if line.isEmpty {
-                Terminal.write("\(ansi.red("▲"))  這一項必填\n")
+                Terminal.write("\(ansi.red("▲"))  Required\n")
                 continue
             }
             return line

@@ -17,7 +17,7 @@ final class ScriptedPrompter: Prompter {
     private func take(_ message: String) throws -> String {
         asked.append(message)
         guard !queue.isEmpty else {
-            throw AgentMuxError("腳本用完了，但流程還在問：\(message)")
+            throw AgentMuxError("The script ran out, but the flow is still asking: \(message)")
         }
         return queue.removeFirst()
     }
@@ -27,7 +27,7 @@ final class ScriptedPrompter: Prompter {
         guard let match = choices.first(where: { $0.value == answer || $0.label.contains(answer) })
         else {
             throw AgentMuxError(
-                "「\(message)」沒有符合 \"\(answer)\" 的選項：\(choices.map(\.label).joined(separator: " / "))"
+                "\"\(message)\" has no option matching \"\(answer)\": \(choices.map(\.label).joined(separator: " / "))"
             )
         }
         return match.value
@@ -55,7 +55,7 @@ private func scratchProject(
     return paths
 }
 
-@Suite("覆蓋既有設定")
+@Suite("Overwriting what is there")
 struct OverwriteTests {
     private func existing() throws -> ProjectPaths {
         try scratchProject(
@@ -68,20 +68,20 @@ struct OverwriteTests {
         )
     }
 
-    @Test("已經設定過的 agent 會先問要不要覆蓋")
+    @Test("An agent already set up asks before being replaced")
     func asksBeforeOverwriting() throws {
         let paths = try existing()
-        let ui = ScriptedPrompter(["claude", "第三方 gateway", "alpha", "取消"])
+        let ui = ScriptedPrompter(["claude", "A third-party gateway", "alpha", "Cancel"])
         #expect(throws: (any Error).self) { try addCommand(paths: paths, prompter: ui) }
-        #expect(ui.asked.contains { $0.contains("已經有 claude 的設定") })
+        #expect(ui.asked.contains { $0.contains("already has claude set up") })
     }
 
     /// Cancelling has to leave the old settings exactly as they were, or the
     /// confirmation would be worse than useless.
-    @Test("選取消時既有設定原封不動")
+    @Test("Cancelling leaves the old settings exactly as they were")
     func cancellingKeepsTheOldSettings() throws {
         let paths = try existing()
-        let ui = ScriptedPrompter(["claude", "第三方 gateway", "alpha", "取消"])
+        let ui = ScriptedPrompter(["claude", "A third-party gateway", "alpha", "Cancel"])
         #expect(throws: (any Error).self) { try addCommand(paths: paths, prompter: ui) }
 
         let config = try GatewayStore.load(paths.configFile)
@@ -89,12 +89,12 @@ struct OverwriteTests {
         #expect(settings?["ANTHROPIC_BASE_URL"] == "https://old.example.com")
     }
 
-    @Test("選覆蓋時換成新的設定")
+    @Test("Replacing writes the new settings")
     func overwritingReplacesThem() throws {
         let paths = try existing()
         let ui = ScriptedPrompter([
-            "claude", "第三方 gateway", "alpha", "覆蓋掉重新設定",
-            "https://new.example.com", "沿用 alpha_key",
+            "claude", "A third-party gateway", "alpha", "Replace it",
+            "https://new.example.com", "Reuse alpha_key",
         ])
         #expect(try addCommand(paths: paths, prompter: ui) == 0)
 
@@ -104,23 +104,23 @@ struct OverwriteTests {
     }
 }
 
-@Suite("精靈中斷")
+@Suite("Abandoning the wizard")
 struct AbortTests {
     /// `init` used to create the directory and two empty files before asking
     /// anything, so a Ctrl-C left a project that `am init` then refused to
-    /// touch again ("已經存在") while holding no usable gateway.
-    @Test("init 中途放棄，不留下 .agentmux/")
+    /// touch again ("already exists") while holding no usable gateway.
+    @Test("Abandoning init leaves no .agentmux/")
     func initLeavesNothing() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("am-abort-\(UUID().uuidString)").path
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
         let paths = ProjectPaths(root: root)
 
-        // Answers run out at "貼上 ... 的值": the script ends mid-wizard, the
+        // Answers run out at "Paste the value …": the script ends mid-wizard, the
         // same place an interrupted run would stop.
         let ui = ScriptedPrompter([
-            "claude", "第三方 gateway", "my-gateway",
-            "https://api.example.com", "輸入新的金鑰", "my-gateway_key",
+            "claude", "A third-party gateway", "my-gateway",
+            "https://api.example.com", "Enter a new key", "my-gateway_key",
         ])
 
         #expect(throws: (any Error).self) {
@@ -131,12 +131,12 @@ struct AbortTests {
 
     /// The key used to be written the moment it was pasted, which put a secret
     /// on disk for a gateway that was never finished.
-    @Test("放棄時貼過的金鑰不會留在 secrets.json")
+    @Test("A key pasted before abandoning is not stored")
     func abortedSecretIsNotStored() throws {
         let paths = try scratchProject()
         let ui = ScriptedPrompter([
-            "claude", "第三方 gateway", "my-gateway",
-            "https://api.example.com", "輸入新的金鑰", "my-gateway_key",
+            "claude", "A third-party gateway", "my-gateway",
+            "https://api.example.com", "Enter a new key", "my-gateway_key",
         ])
 
         #expect(throws: (any Error).self) { try addCommand(paths: paths, prompter: ui) }
@@ -144,13 +144,13 @@ struct AbortTests {
         #expect(try GatewayStore.load(paths.configFile).gateways.isEmpty)
     }
 
-    @Test("放棄時不會動到既有設定")
+    @Test("Abandoning touches nothing that was already there")
     func existingConfigSurvives() throws {
         let paths = try scratchProject(
             GatewayFile(version: 1, gateways: [Gateway(id: "keep", label: nil, agents: [:])]),
             secrets: ["old_key": "sk-old"]
         )
-        let ui = ScriptedPrompter(["claude", "第三方 gateway", "新增一個 gateway", "later"])
+        let ui = ScriptedPrompter(["claude", "A third-party gateway", "Add a new gateway", "later"])
 
         #expect(throws: (any Error).self) { try addCommand(paths: paths, prompter: ui) }
         #expect(try GatewayStore.load(paths.configFile).gateways.map(\.id) == ["keep"])
@@ -158,19 +158,19 @@ struct AbortTests {
     }
 }
 
-@Suite("精靈：第一次設定")
+@Suite("Wizard: first run")
 struct FirstRunTests {
-    @Test("跑完流程就有一個能用的 gateway，金鑰只進 secrets.json")
+    @Test("A finished run leaves a working gateway, key only in secrets.json")
     func firstGateway() throws {
         let paths = try scratchProject()
         let ui = ScriptedPrompter([
-            "claude",                   // 哪個 agent
-            "custom",                   // 要連到哪裡
-            "my-gateway",                 // gateway 名稱
+            "claude",                   // which agent
+            "custom",                   // where to connect
+            "my-gateway",               // gateway name
             "https://api.example.com",  // base URL
-            "輸入新的金鑰",              // 金鑰來源
-            "",                         // 名稱用預設 my-gateway_key
-            "sk-real-token-value",      // 金鑰
+            "Enter a new key",          // where the key comes from
+            "",                         // keep the default name, my-gateway_key
+            "sk-real-token-value",      // the key itself
         ])
 
         #expect(try addCommand(paths: paths, prompter: ui) == 0)
@@ -185,13 +185,13 @@ struct FirstRunTests {
         #expect(try SecretStore.load(paths.secretsFile) == ["my-gateway_key": "sk-real-token-value"])
     }
 
-    @Test("官方不問名稱也不問 base URL")
+    @Test("The official choice asks for neither name nor base URL")
     func officialNeedsNoName() throws {
         let paths = try scratchProject()
-        let ui = ScriptedPrompter(["claude", "official", "不需要金鑰", ""])
+        let ui = ScriptedPrompter(["claude", "official", "No key needed", ""])
 
         #expect(try addCommand(paths: paths, prompter: ui) == 0)
-        #expect(!ui.asked.contains { $0.contains("名稱") })
+        #expect(!ui.asked.contains { $0.contains("Gateway name") })
         #expect(!ui.asked.contains { $0.contains("Base URL") })
 
         let config = try GatewayStore.load(paths.configFile)
@@ -199,22 +199,22 @@ struct FirstRunTests {
             .settings?["ANTHROPIC_BASE_URL"] == "")
     }
 
-    @Test("先問連到哪裡，再問名稱")
+    @Test("It asks where to connect before it asks for a name")
     func asksDestinationFirst() throws {
         let paths = try scratchProject()
         let ui = ScriptedPrompter([
-            "claude", "custom", "gw", "https://api.example.com", "不需要金鑰", "",
+            "claude", "custom", "gw", "https://api.example.com", "No key needed", "",
         ])
         _ = try addCommand(paths: paths, prompter: ui)
 
-        let destination = ui.asked.firstIndex { $0.contains("要連到哪裡") }
-        let name = ui.asked.firstIndex { $0.contains("名稱") }
+        let destination = ui.asked.firstIndex { $0.contains("Connect to what?") }
+        let name = ui.asked.firstIndex { $0.contains("Gateway name") }
         #expect(destination != nil && name != nil)
         #expect(destination! < name!)
     }
 }
 
-@Suite("精靈：同一把金鑰給多個 agent")
+@Suite("Wizard: one key, several agents")
 struct SharedKeyTests {
     private func projectWithClaude() throws -> ProjectPaths {
         try scratchProject(
@@ -230,7 +230,7 @@ struct SharedKeyTests {
         )
     }
 
-    @Test("加 codex 到既有 gateway 並沿用同一把金鑰，不必重貼")
+    @Test("Adding codex to a gateway reuses its key without a repaste")
     func reuseKey() throws {
         let paths = try projectWithClaude()
         let ui = ScriptedPrompter([
@@ -245,10 +245,10 @@ struct SharedKeyTests {
         #expect(codex?.env?["AGENTMUX_CODEX_KEY"] == "${secret:my-gateway_key}")
         // Nothing new was written, and the flow never asked to paste a key.
         #expect(try SecretStore.load(paths.secretsFile) == ["my-gateway_key": "sk-shared-token"])
-        #expect(!ui.asked.contains { $0.contains("貼上") })
+        #expect(!ui.asked.contains { $0.contains("Paste the value") })
     }
 
-    @Test("沿用現有金鑰是選單裡的第一個選項")
+    @Test("Reusing an existing key is the first option offered")
     func reuseIsOffered() throws {
         let paths = try projectWithClaude()
         var secretChoices: [Choice] = []
@@ -263,7 +263,7 @@ struct SharedKeyTests {
             func intro(_ m: String) { inner.intro(m) }
             func outro(_ m: String) { inner.outro(m) }
             func select(_ m: String, _ c: [Choice], initial: String?) throws -> String {
-                if m.contains("金鑰") { onSecretQuestion(c) }
+                if m.contains("Which key?") { onSecretQuestion(c) }
                 return try inner.select(m, c, initial: initial)
             }
             func text(_ m: String, placeholder: String?, defaultValue: String?,
@@ -280,15 +280,15 @@ struct SharedKeyTests {
 
         _ = try addCommand(paths: paths, prompter: ui)
         #expect(secretChoices.first?.value == "my-gateway_key")
-        #expect(secretChoices.first?.label.contains("沿用") == true)
+        #expect(secretChoices.first?.label.contains("Reuse") == true)
     }
 
-    @Test("另一個 provider 就是另一把金鑰")
+    @Test("Another provider means another key")
     func separateKeys() throws {
         let paths = try projectWithClaude()
         let ui = ScriptedPrompter([
-            "claude", "custom", "新增一個 gateway", "other", "https://api.other.ai",
-            "輸入新的金鑰", "other_key", "sk-other-token", "",
+            "claude", "custom", "Add a new gateway", "other", "https://api.other.ai",
+            "Enter a new key", "other_key", "sk-other-token", "",
         ])
 
         #expect(try addCommand(paths: paths, prompter: ui) == 0)
@@ -298,9 +298,9 @@ struct SharedKeyTests {
     }
 }
 
-@Suite("精靈產生的設定")
+@Suite("What the wizard writes")
 struct WizardConfigTests {
-    @Test("claude 自訂端點用 ${secret:} 引用，不寫明文")
+    @Test("A custom Claude endpoint references the key, never inlines it")
     func claudeCustom() {
         let config = buildAgentConfig(WizardAnswers(
             agent: .claude, mode: .custom, name: "my-gateway",
@@ -310,7 +310,7 @@ struct WizardConfigTests {
         #expect(config.settings?["ANTHROPIC_AUTH_TOKEN"] == "${secret:my-gateway_key}")
     }
 
-    @Test("codex 自訂端點：金鑰走 env_key，不進命令列")
+    @Test("A custom Codex endpoint takes its key through env_key")
     func codexCustom() {
         let config = buildAgentConfig(WizardAnswers(
             agent: .codex, mode: .custom, name: "my-gateway",
@@ -329,7 +329,7 @@ struct WizardConfigTests {
     /// defined under — not its `name` field. Registering every gateway under
     /// one shared id made that line read "agentmux" whichever gateway the user
     /// had picked, which is the one thing it is there to tell them.
-    @Test("provider id 就是 gateway 名稱，/status 才顯示得出選了哪個")
+    @Test("The provider id is the gateway name, so /status can tell them apart")
     func providerIdIsTheGatewayName() {
         let config = buildAgentConfig(WizardAnswers(
             agent: .codex, mode: .custom, name: "mixroute",
@@ -342,7 +342,7 @@ struct WizardConfigTests {
         #expect(!args.joined(separator: " ").contains("agentmux"))
     }
 
-    @Test("換一個 gateway 名稱，provider id 跟著換")
+    @Test("A different gateway name gives a different provider id")
     func anotherGatewayGetsItsOwnId() {
         let config = buildAgentConfig(WizardAnswers(
             agent: .codex, mode: .custom, name: "openrouter",
@@ -354,7 +354,7 @@ struct WizardConfigTests {
         #expect(args.contains("model_providers.openrouter.name=\"openrouter\""))
     }
 
-    @Test("codex 官方切回內建 provider，不帶環境變數")
+    @Test("Official Codex goes back to the built-in provider, with no env")
     func codexOfficial() {
         let config = buildAgentConfig(WizardAnswers(
             agent: .codex, mode: .official, name: "openai",

@@ -26,7 +26,7 @@ private let binary: URL = {
         if newest == nil || date > newest!.1 { newest = (url, date) }
     }
     guard let found = newest?.0 else {
-        fatalError("找不到已建置的 am，請先執行 swift build")
+        fatalError("No built am found — run swift build first")
     }
     return found
 }()
@@ -102,9 +102,9 @@ private struct Report: Decodable {
     let helperKey: String?
 }
 
-@Suite("CLI 啟動")
+@Suite("Launching")
 struct CLITests {
-    @Test("execvp 交出去的參數裡沒有金鑰，helper 才取得到")
+    @Test("No key in the argv handed to execvp; the helper fetches it")
     func noSecretInArgv() throws {
         let run = try am(["claude", "-g", "my-gateway"], in: try project())
         #expect(run.status == 0)
@@ -114,7 +114,7 @@ struct CLITests {
         #expect(report.helperKey == token)
     }
 
-    @Test("codex 的金鑰只走環境變數")
+    @Test("A Codex key travels only in the environment")
     func codexKeyInEnv() throws {
         let run = try am(["codex", "-g", "my-gateway"], in: try project())
         let report = try JSONDecoder().decode(Report.self, from: Data(run.stdout.utf8))
@@ -123,7 +123,7 @@ struct CLITests {
         #expect(!report.argv.joined(separator: " ").contains(token))
     }
 
-    @Test("-- 之後的參數排在 gateway 參數後面並原樣傳遞")
+    @Test("Arguments after -- follow the gateway's own, untouched")
     func passthrough() throws {
         let run = try am(["codex", "-g", "my-gateway", "--", "--resume", "abc"], in: try project())
         let report = try JSONDecoder().decode(Report.self, from: Data(run.stdout.utf8))
@@ -132,13 +132,13 @@ struct CLITests {
         #expect(report.argv.first == "-c")
     }
 
-    @Test("原樣傳回 agent 的 exit code")
+    @Test("The agent's exit code is passed straight back")
     func exitCode() throws {
         let run = try am(["codex", "-g", "my-gateway"], in: try project(), env: ["FAKE_AGENT_EXIT": "42"])
         #expect(run.status == 42)
     }
 
-    @Test("啟動不產生任何暫存檔")
+    @Test("A launch writes no temporary files")
     func noTempFiles() throws {
         // Hand the launch a temporary directory of its own. The shared one also
         // holds the scratch projects that tests running in parallel create, so
@@ -154,7 +154,7 @@ struct CLITests {
         #expect(written.isEmpty)
     }
 
-    @Test("--dry-run 不啟動，也不印出金鑰")
+    @Test("--dry-run starts nothing and prints no key")
     func dryRun() throws {
         let run = try am(["claude", "-g", "my-gateway", "--dry-run"], in: try project())
 
@@ -165,14 +165,14 @@ struct CLITests {
         #expect(!run.stdout.contains("\"argv\""))      // the agent never ran
     }
 
-    @Test("不認識的選項會提示改用 --")
+    @Test("An unknown option suggests -- instead")
     func unknownOption() throws {
         let run = try am(["claude", "--resume"], in: try project())
         #expect(run.status == 1)
         #expect(run.stderr.contains("--"))
     }
 
-    @Test("沒有設定檔時提示 am init")
+    @Test("With no config it points at am init")
     func missingConfig() throws {
         let empty = FileManager.default.temporaryDirectory
             .appendingPathComponent("am-empty-\(UUID().uuidString)").path
@@ -183,7 +183,7 @@ struct CLITests {
         #expect(run.stderr.contains("am init"))
     }
 
-    @Test("從子目錄往上找得到 .agentmux")
+    @Test("A subdirectory finds the project above it")
     func discoversUpward() throws {
         let root = try project()
         let nested = (root as NSString).appendingPathComponent("a/b")
@@ -192,7 +192,7 @@ struct CLITests {
         #expect(try am(["claude", "-g", "my-gateway"], in: nested).status == 0)
     }
 
-    @Test("非互動終端機下 init 與 add 明確拒絕，不留下半成品")
+    @Test("Without a terminal, init and add refuse outright")
     func requiresTTY() throws {
         let empty = FileManager.default.temporaryDirectory
             .appendingPathComponent("am-tty-\(UUID().uuidString)").path
@@ -200,7 +200,7 @@ struct CLITests {
 
         let run = try am(["init"], in: empty)
         #expect(run.status == 1)
-        #expect(run.stderr.contains("互動式終端機"))
+        #expect(run.stderr.contains("interactive terminal"))
         #expect(!FileManager.default.fileExists(
             atPath: ProjectPaths(root: empty).directory))
     }

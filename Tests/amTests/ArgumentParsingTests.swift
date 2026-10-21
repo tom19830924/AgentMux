@@ -4,18 +4,18 @@ import Testing
 @testable import am
 
 /// Everything `run(_:)` decides before a command gets involved.
-@Suite("參數解析")
+@Suite("Argument parsing", .serialized)
 struct ArgumentParsingTests {
-    @Test("不帶參數時印出說明，而不是報錯")
+    @Test("No arguments shows the help, not an error")
     func noArgumentsShowsHelp() throws {
         let run = try runAm([], in: try scratchDirectory())
         #expect(run.status == 0)
-        #expect(run.stdout.contains("用法："))
+        #expect(run.stdout.contains("Usage:"))
     }
 
     /// The number here is what a bug report will quote, so it has to be the
     /// version that was actually installed.
-    @Test("--version 只印版本號")
+    @Test("--version prints just the number")
     func versionPrintsTheNumber() throws {
         let root = try scratchDirectory()
         for flag in ["-v", "--version"] {
@@ -25,32 +25,32 @@ struct ArgumentParsingTests {
         }
     }
 
-    @Test("am secret 後面不是 get 就給出用法")
+    @Test("am secret without get shows the usage")
     func secretNeedsGet() throws {
         let run = try runAm(["secret", "list"], in: try scratchDirectory())
         #expect(run.status != 0)
         #expect(run.stderr.contains("am secret get"))
     }
 
-    @Test("不認識的指令會列出可用的指令")
+    @Test("An unknown command lists the real ones")
     func unknownCommand() throws {
         let run = try runAm(["frobnicate"], in: try scratchDirectory())
         #expect(run.status != 0)
-        #expect(run.stderr.contains("不認識的指令"))
+        #expect(run.stderr.contains("Unknown command"))
         #expect(run.stderr.contains("init"))
     }
 
-    @Test("-g 後面沒接值會報錯")
+    @Test("-g with nothing after it fails")
     func gatewayFlagNeedsAValue() throws {
         let paths = try projectFixture()
         for flag in ["-g", "--gateway"] {
             let run = try runAm(["claude", flag], in: paths.root)
             #expect(run.status != 0)
-            #expect(run.stderr.contains("後面要接"))
+            #expect(run.stderr.contains("needs a gateway id after it"))
         }
     }
 
-    @Test("--gateway=名稱 的寫法也認得")
+    @Test("The --gateway=name form is accepted")
     func equalsFormIsAccepted() throws {
         let paths = try projectFixture()
         let run = try runAm(["claude", "--gateway=alpha", "--dry-run"], in: paths.root)
@@ -62,10 +62,10 @@ struct ArgumentParsingTests {
     /// the program to produce it — the terminal driver turns that byte into
     /// SIGINT before any read sees it — so the exit code belongs to the keys
     /// that do arrive: Ctrl-D and Esc.
-    @Test("用 Ctrl-D 取消互動，結束碼是 130")
+    @Test("Cancelling with Ctrl-D exits 130")
     func cancellingExitsWith130() throws {
         let session = try TerminalSession(["init"], in: try scratchDirectory())
-        try session.wait(for: "要設定哪個 agent")
+        try session.wait(for: "Which agent?")
         session.sendByte(0x04)
         #expect(try session.waitUntilExit() == 130)
     }

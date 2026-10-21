@@ -18,7 +18,7 @@ func execAgent(command: String, args: [String], env: [String: String]) throws ->
 
     // Only reached when exec failed.
     if errno == ENOENT {
-        throw AgentMuxError("找不到指令 \"\(command)\"", hint: "請確認它已安裝且在 PATH 上")
+        throw AgentMuxError("Cannot find \"\(command)\"", hint: "Check that it is installed and on your PATH")
     }
-    throw AgentMuxError("無法啟動 \"\(command)\"：\(String(cString: strerror(errno)))")
+    throw AgentMuxError("Could not start \"\(command)\": \(String(cString: strerror(errno)))")
 }

@@ -19,7 +19,7 @@ struct SecretGetTests {
     }
 
     /// A trailing newline would be taken as part of the key by whatever reads it.
-    @Test("印出金鑰，結尾不加換行")
+    @Test("Prints the value with no trailing newline")
     func printsTheValueVerbatim() throws {
         let paths = try project(["k": "sk-value"])
         let run = try runAm(["secret", "get", "--file", paths.secretsFile, "k"], in: paths.root)
@@ -27,14 +27,14 @@ struct SecretGetTests {
         #expect(run.stdout == "sk-value")
     }
 
-    @Test("--file 省略時從專案找")
+    @Test("Without --file it finds the project")
     func findsTheProjectSecrets() throws {
         let paths = try project(["k": "sk-from-project"])
         let run = try runAm(["secret", "get", "k"], in: paths.root)
         #expect(run.stdout == "sk-from-project")
     }
 
-    @Test("找不到名稱時報錯，而且不吐出任何值")
+    @Test("An unknown name fails and prints nothing")
     func missingNameFails() throws {
         let paths = try project(["k": "sk-value"])
         let run = try runAm(["secret", "get", "--file", paths.secretsFile, "nope"], in: paths.root)
@@ -43,7 +43,7 @@ struct SecretGetTests {
         #expect(run.stderr.contains("nope"))
     }
 
-    @Test("--file 後面沒接路徑時給出用法")
+    @Test("--file with no path shows the usage")
     func fileNeedsAPath() throws {
         let root = try scratchDirectory()
         let run = try runAm(["secret", "get", "--file"], in: root)
@@ -52,9 +52,9 @@ struct SecretGetTests {
     }
 }
 
-@Suite("命令列外觀")
+@Suite("Command surface")
 struct CommandSurfaceTests {
-    @Test("--help 列出每個指令")
+    @Test("--help lists every command")
     func helpListsTheCommands() throws {
         let root = try scratchDirectory()
         let run = try runAm(["--help"], in: root)
@@ -64,14 +64,14 @@ struct CommandSurfaceTests {
         }
     }
 
-    @Test("--help 不提到任何特定的服務商")
+    @Test("--help names no particular provider")
     func helpNamesNoProvider() throws {
         let root = try scratchDirectory()
         let run = try runAm(["--help"], in: root)
         #expect(!run.stdout.lowercased().contains("mixroute"))
     }
 
-    @Test("am ls 列出 gateway、agent 與引用到的金鑰名稱，但不印金鑰")
+    @Test("am ls shows the shape, never the key")
     func listShowsTheShape() throws {
         let root = try scratchDirectory()
         let paths = ProjectPaths(root: root)
@@ -99,7 +99,7 @@ struct CommandSurfaceTests {
         #expect(!run.stdout.contains("sk-must-not-appear"))
     }
 
-    @Test("沒有設定檔時 am ls 說要先 init")
+    @Test("am ls without a project points at init")
     func listWithoutAProject() throws {
         let run = try runAm(["ls"], in: try scratchDirectory())
         #expect(run.status != 0)
@@ -109,25 +109,25 @@ struct CommandSurfaceTests {
 
 /// The helper command is embedded in a JSON settings blob and later run by a
 /// shell, so anything unusual in a path has to survive the round trip.
-@Suite("shell 引號處理")
+@Suite("Shell quoting")
 struct ShellQuoteTests {
-    @Test("一般字串加上單引號")
+    @Test("An ordinary value is single-quoted")
     func plainValue() {
         #expect(shellQuote("abc") == "'abc'")
     }
 
-    @Test("空白不會讓參數被拆開")
+    @Test("Spaces do not split the argument")
     func spaces() {
         #expect(shellQuote("/path/with space/am") == "'/path/with space/am'")
     }
 
-    @Test("單引號本身被正確跳脫")
+    @Test("A single quote is escaped")
     func singleQuote() {
         let quoted = shellQuote("it's")
         #expect(quoted == "'it'\\''s'")
     }
 
-    @Test("helper 指令帶著金鑰名稱，但不含金鑰")
+    @Test("The helper command carries the name, not the key")
     func helperMentionsOnlyTheName() {
         let command = secretHelperCommand(secretsFile: "/tmp/s.json", name: "alpha_key")
         #expect(command.contains("alpha_key"))

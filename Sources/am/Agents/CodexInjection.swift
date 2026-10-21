@@ -18,8 +18,8 @@ import Foundation
 func buildCodexInjection(_ config: AgentConfig, _ context: InjectionContext) throws -> Injection {
     if let settings = config.settings, !settings.isEmpty {
         throw AgentMuxError(
-            "Codex 不支援 `settings` 欄位",
-            hint: "請改用 `args` 搭配 -c 覆寫，金鑰放在 `env` 並以 env_key 指向它"
+            "Codex has no `settings` field",
+            hint: "Use `args` with -c overrides instead, and put the key in `env` with env_key pointing at it"
         )
     }
 

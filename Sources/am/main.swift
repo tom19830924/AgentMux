@@ -2,35 +2,35 @@ import Foundation
 
 func helpText() -> String {
     let agents = Agent.allCases
-        .map { "  \($0.id.padding(toLength: 8, withPad: " ", startingAt: 0)) \($0.displayName) \(ansi.dim("（\($0.injectionSummary)）"))" }
+        .map { "  \($0.id.padding(toLength: 8, withPad: " ", startingAt: 0)) \($0.displayName) \(ansi.dim("(\($0.injectionSummary))"))" }
         .joined(separator: "\n")
 
     return """
-    \(ansi.bold("am")) — 每專案的 AI agent gateway 切換器
+    \(ansi.bold("am")) — per-project gateway switcher for AI agents
 
-    用法：
-      am init                     建立 .agentmux/ 並設定第一個 gateway
-      am add                      新增一個 gateway，或替既有 gateway 加上另一個 agent
-      am ls                       列出這個專案的 gateway
-      am secret get <name>        印出一把金鑰（Claude Code 取金鑰時會呼叫）
-      am <agent> [選項] [-- ...]  選一個 gateway 並啟動 agent
+    Usage:
+      am init                      Create .agentmux/ and set up the first gateway
+      am add                       Add a gateway, or another agent to one you have
+      am ls                        List this project's gateways
+      am secret get <name>         Print one key (Claude Code calls this itself)
+      am <agent> [options] [-- …]  Pick a gateway, then start the agent
 
-    agent：
+    Agents:
     \(agents)
 
-    選項：
-      -g, --gateway <id>   跳過選單，直接用指定的 gateway
-          --dry-run        印出實際會注入的內容，不啟動
-      -h, --help           顯示這份說明
-      -v, --version        顯示版本
+    Options:
+      -g, --gateway <id>   Skip the menu and use this gateway
+          --dry-run        Print what would be injected, without starting anything
+      -h, --help           Show this help
+      -v, --version        Show the version
 
-    範例：
-      am add                      互動式新增，同一把金鑰可以給多個 agent 共用
-      am claude                   跳選單，選完直接進 Claude Code
-      am claude -g my-gateway     指定 gateway
-      am codex -- --resume        -- 之後的參數原樣轉給 codex
+    Examples:
+      am add                       One key can serve several agents; it offers to reuse
+      am claude                    Pick from the menu and land straight in Claude Code
+      am claude -g my-gateway      Name the gateway instead
+      am codex -- --resume         Everything after -- is handed to codex untouched
 
-    直接打 claude 或 codex 不受影響，照原本的設定檔運作。
+    Running claude or codex directly is unaffected: they read their own settings as before.
 
     """
 }
@@ -62,7 +62,10 @@ func run(_ argv: [String]) throws -> Int32 {
         return try listCommand()
     case "secret":
         guard rest.first == "get" else {
-            throw AgentMuxError("用法：am secret get <name>", hint: "Claude Code 的 apiKeyHelper 會呼叫它")
+            throw AgentMuxError(
+                "Usage: am secret get <name>",
+                hint: "Claude Code's apiKeyHelper runs this to fetch a key"
+            )
         }
         return try secretGetCommand(Array(rest.dropFirst()))
     default:
@@ -71,9 +74,9 @@ func run(_ argv: [String]) throws -> Int32 {
 
     guard Agent.isAgent(first) else {
         throw AgentMuxError(
-            "不認識的指令 \"\(first)\"",
-            hint: "可用的有：init、add、ls、secret，或 agent 名稱"
-                + "（\(Agent.allCases.map(\.id).joined(separator: "、"))）"
+            "Unknown command \"\(first)\"",
+            hint: "Commands are init, add, ls and secret, or the name of an agent"
+                + " (\(Agent.allCases.map(\.id).joined(separator: ", ")))"
         )
     }
 
@@ -84,7 +87,7 @@ func run(_ argv: [String]) throws -> Int32 {
         switch argument {
         case "-g", "--gateway":
             guard index + 1 < rest.count else {
-                throw AgentMuxError("\(argument) 後面要接 gateway id")
+                throw AgentMuxError("\(argument) needs a gateway id after it")
             }
             options.gateway = rest[index + 1]
             index += 2
@@ -98,8 +101,8 @@ func run(_ argv: [String]) throws -> Int32 {
                 continue
             }
             throw AgentMuxError(
-                "am 不認識選項 \"\(argument)\"",
-                hint: "要把參數轉給 \(first) 的話，請放在 -- 後面：am \(first) -- \(argument)"
+                "am does not know the option \"\(argument)\"",
+                hint: "To pass it to \(first), put it after --: am \(first) -- \(argument)"
             )
         }
     }
@@ -110,15 +113,15 @@ func run(_ argv: [String]) throws -> Int32 {
 do {
     exit(try run(Array(CommandLine.arguments.dropFirst())))
 } catch let error as AgentMuxError {
-    FileHandle.standardError.write(Data("\(ansi.red("錯誤")) \(error.message)\n".utf8))
+    FileHandle.standardError.write(Data("\(ansi.red("Error")) \(error.message)\n".utf8))
     if let hint = error.hint {
         FileHandle.standardError.write(Data("\(ansi.dim(hint))\n".utf8))
     }
     exit(1)
 } catch is CancelledError {
-    FileHandle.standardError.write(Data("\(ansi.dim("已取消"))\n".utf8))
+    FileHandle.standardError.write(Data("\(ansi.dim("Cancelled"))\n".utf8))
     exit(130)
 } catch {
-    FileHandle.standardError.write(Data("\(ansi.red("錯誤")) \(error)\n".utf8))
+    FileHandle.standardError.write(Data("\(ansi.red("Error")) \(error)\n".utf8))
     exit(1)
 }

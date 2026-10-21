@@ -23,7 +23,7 @@ let amBinary: URL = {
         guard values?.isExecutable == true, let date = values?.contentModificationDate else { continue }
         if newest == nil || date > newest!.1 { newest = (url, date) }
     }
-    guard let found = newest?.0 else { fatalError("找不到已建置的 am，請先執行 swift build") }
+    guard let found = newest?.0 else { fatalError("No built am found — run swift build first") }
     return found
 }()
 
@@ -99,6 +99,10 @@ func runAm(
 ///
 /// Signals are delivered with `kill` rather than by writing Ctrl-C, because the
 /// child is not a session leader here and so the pty generates none itself.
+///
+/// A pty is a limited system resource, so the suites that use one are
+/// `.serialized`: enough of them opening at once gets ENXIO from `openpty`,
+/// which looks like a test failure but is only contention.
 final class TerminalSession {
     private let primary: Int32
     private let process = Process()
@@ -108,7 +112,7 @@ final class TerminalSession {
         var primaryFD: Int32 = 0
         var replicaFD: Int32 = 0
         guard openpty(&primaryFD, &replicaFD, nil, nil, nil) == 0 else {
-            throw TerminalSessionError("openpty 失敗：\(String(cString: strerror(errno)))")
+            throw TerminalSessionError("openpty failed: \(String(cString: strerror(errno)))")
         }
         primary = primaryFD
         _ = fcntl(primary, F_SETFL, fcntl(primary, F_GETFL, 0) | O_NONBLOCK)
@@ -185,7 +189,7 @@ final class TerminalSession {
             usleep(20_000)
         }
         throw TerminalSessionError(
-            "等不到 \"\(substring)\"。目前畫面：\n\(plain)"
+            "Waited for \"\(substring)\" and never saw it. Screen:\n\(plain)"
         )
     }
 
@@ -198,7 +202,7 @@ final class TerminalSession {
             if Date() > deadline {
                 kill(process.processIdentifier, SIGKILL)
                 process.waitUntilExit()
-                throw TerminalSessionError("行程在 \(timeout) 秒內沒有結束。畫面：\n\(plain)")
+                throw TerminalSessionError("The process did not exit within \(timeout)s. Screen:\n\(plain)")
             }
             drain()
             usleep(20_000)

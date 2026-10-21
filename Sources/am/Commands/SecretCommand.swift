@@ -12,7 +12,7 @@ func secretGetCommand(_ arguments: [String]) throws -> Int32 {
     while index < arguments.count {
         if arguments[index] == "--file" {
             guard index + 1 < arguments.count else {
-                throw AgentMuxError("--file 後面要接路徑")
+                throw AgentMuxError("--file needs a path after it")
             }
             secretsFile = arguments[index + 1]
             index += 2
@@ -23,13 +23,13 @@ func secretGetCommand(_ arguments: [String]) throws -> Int32 {
     }
 
     guard let name = rest.first else {
-        throw AgentMuxError("用法：am secret get [--file <path>] <name>")
+        throw AgentMuxError("Usage: am secret get [--file <path>] <name>")
     }
 
     let file = try secretsFile ?? ProjectPaths.require().secretsFile
     let secrets = try SecretStore.load(file)
     guard let value = secrets[name] else {
-        throw AgentMuxError("找不到 secret \"\(name)\"", hint: "請確認 \(file) 裡有這個鍵")
+        throw AgentMuxError("No secret named \"\(name)\"", hint: "Check that \(file) has that key")
     }
 
     // No trailing newline: the consumer uses the output verbatim.

@@ -38,7 +38,7 @@ enum Agent: String, CaseIterable {
     var injectionSummary: String {
         switch self {
         case .claude: "--settings + apiKeyHelper"
-        case .codex: "-c 覆寫"
+        case .codex: "-c overrides"
         }
     }
 
@@ -58,8 +58,8 @@ enum Agent: String, CaseIterable {
     static func named(_ id: String) throws -> Agent {
         guard let agent = Agent(rawValue: id) else {
             throw AgentMuxError(
-                "不認識的 agent \"\(id)\"",
-                hint: "支援的有：\(allCases.map(\.id).joined(separator: "、"))"
+                "Unknown agent \"\(id)\"",
+                hint: "Supported agents: \(allCases.map(\.id).joined(separator: ", "))"
             )
         }
         return agent

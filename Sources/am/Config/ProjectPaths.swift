@@ -57,13 +57,13 @@ struct ProjectPaths {
         let here = ProjectPaths(root: startDirectory)
         if FileManager.default.fileExists(atPath: here.legacyYAMLFile) {
             throw AgentMuxError(
-                "找到舊版的 .agentmux/gateways.yaml，這個版本改用 gateways.json",
-                hint: "執行 `am init` 重新設定，或自行把內容轉成 JSON"
+                "Found .agentmux/gateways.yaml from an older version; this one reads gateways.json",
+                hint: "Run `am init` to set it up again, or convert the file to JSON yourself"
             )
         }
         throw AgentMuxError(
-            "這個目錄下找不到 .agentmux/gateways.json",
-            hint: "在專案根目錄執行 `am init` 建立設定檔"
+            "No .agentmux/gateways.json in this directory or above it",
+            hint: "Run `am init` in the project root to create it"
         )
     }
 }

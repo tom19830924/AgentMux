@@ -16,7 +16,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: 環境資訊
+      - name: Toolchain
         run: swift --version
-      - name: 測試
+      - name: Test
         run: swift test

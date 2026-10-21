@@ -13,13 +13,13 @@ func initCommand(prompter: Prompter? = nil) throws -> Int32 {
 
     if FileManager.default.fileExists(atPath: paths.configFile) {
         throw AgentMuxError(
-            "\(relativeToCurrentDirectory(paths.configFile)) 已經存在",
-            hint: "要新增 gateway 請用 `am add`"
+            "\(relativeToCurrentDirectory(paths.configFile)) already exists",
+            hint: "Use `am add` to add another gateway"
         )
     }
 
     if prompter == nil, !Terminal.isInteractive {
-        throw AgentMuxError("am init 需要互動式終端機", hint: "請直接在終端機裡執行")
+        throw AgentMuxError("am init needs an interactive terminal", hint: "Run it in a terminal")
     }
 
     // The wizard creates the directory only once it has every answer it needs.
