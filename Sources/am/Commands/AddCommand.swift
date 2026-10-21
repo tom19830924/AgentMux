@@ -105,9 +105,13 @@ func addCommand(
     var wireAPI: String?
 
     if mode == .custom {
+        // No example here on purpose: Claude Code appends /v1/messages to what
+        // it is given and Codex appends its own path to a base that may already
+        // carry one, so any example would be right for one and wrong for the
+        // other. The provider's own documentation is the thing to copy from.
         baseURL = try ui.text(
             "Base URL",
-            placeholder: "https://api.example.com",
+            placeholder: nil,
             defaultValue: nil
         ) { value in
             if value.isEmpty { return "Required" }
