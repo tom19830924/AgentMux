@@ -55,6 +55,55 @@ private func scratchProject(
     return paths
 }
 
+@Suite("覆蓋既有設定")
+struct OverwriteTests {
+    private func existing() throws -> ProjectPaths {
+        try scratchProject(
+            GatewayFile(version: 1, gateways: [
+                Gateway(id: "alpha", label: nil, agents: [
+                    "claude": AgentConfig(settings: ["ANTHROPIC_BASE_URL": "https://old.example.com"]),
+                ]),
+            ]),
+            secrets: ["alpha_key": "sk-old"]
+        )
+    }
+
+    @Test("已經設定過的 agent 會先問要不要覆蓋")
+    func asksBeforeOverwriting() throws {
+        let paths = try existing()
+        let ui = ScriptedPrompter(["claude", "第三方 gateway", "alpha", "取消"])
+        #expect(throws: (any Error).self) { try addCommand(paths: paths, prompter: ui) }
+        #expect(ui.asked.contains { $0.contains("已經有 claude 的設定") })
+    }
+
+    /// Cancelling has to leave the old settings exactly as they were, or the
+    /// confirmation would be worse than useless.
+    @Test("選取消時既有設定原封不動")
+    func cancellingKeepsTheOldSettings() throws {
+        let paths = try existing()
+        let ui = ScriptedPrompter(["claude", "第三方 gateway", "alpha", "取消"])
+        #expect(throws: (any Error).self) { try addCommand(paths: paths, prompter: ui) }
+
+        let config = try GatewayStore.load(paths.configFile)
+        let settings = config.gateway(id: "alpha")?.agents["claude"]?.settings
+        #expect(settings?["ANTHROPIC_BASE_URL"] == "https://old.example.com")
+    }
+
+    @Test("選覆蓋時換成新的設定")
+    func overwritingReplacesThem() throws {
+        let paths = try existing()
+        let ui = ScriptedPrompter([
+            "claude", "第三方 gateway", "alpha", "覆蓋掉重新設定",
+            "https://new.example.com", "沿用 alpha_key", "",
+        ])
+        #expect(try addCommand(paths: paths, prompter: ui) == 0)
+
+        let config = try GatewayStore.load(paths.configFile)
+        let settings = config.gateway(id: "alpha")?.agents["claude"]?.settings
+        #expect(settings?["ANTHROPIC_BASE_URL"] == "https://new.example.com")
+    }
+}
+
 @Suite("精靈中斷")
 struct AbortTests {
     /// `init` used to create the directory and two empty files before asking

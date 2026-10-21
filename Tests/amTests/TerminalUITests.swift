@@ -72,7 +72,7 @@ struct TerminalUITests {
         let session = try TerminalSession(["init"], in: root)
         try session.wait(for: "要設定哪個 agent")
         session.interrupt()
-        _ = session.waitUntilExit()
+        _ = try session.waitUntilExit()
 
         #expect(!FileManager.default.fileExists(atPath: ProjectPaths(root: root).directory))
     }
@@ -83,7 +83,7 @@ struct TerminalUITests {
         session.send("sk-live\r")
         try session.wait(for: "模型")
         session.send("\r")
-        #expect(session.waitUntilExit() == 0)
+        #expect(try session.waitUntilExit() == 0)
 
         let paths = ProjectPaths(root: root)
         #expect(try SecretStore.load(paths.secretsFile) == ["acme_key": "sk-live"])

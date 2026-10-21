@@ -40,6 +40,16 @@ jobs:
           echo "tag=$TAG"            >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}"    >> "$GITHUB_OUTPUT"
 
+      - name: 版本號必須與 tag 一致
+        run: |
+          IN_SOURCE=$(grep -oE 'static let version = "[^"]+"' Sources/am/Version.swift | cut -d'"' -f2)
+          WANTED="${{ steps.ver.outputs.version }}"
+          if [ "$IN_SOURCE" != "$WANTED" ]; then
+            echo "::error::Version.swift 寫的是 $IN_SOURCE，但 tag 是 $WANTED"
+            exit 1
+          fi
+          echo "版本號一致：$IN_SOURCE"
+
       - name: 測試
         run: swift test
 

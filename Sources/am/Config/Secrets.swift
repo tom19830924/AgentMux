@@ -20,7 +20,6 @@ final class SecretResolver {
 
     func has(_ name: String) -> Bool { secrets[name] != nil }
 
-    var names: [String] { secrets.keys.sorted() }
 
     func resolve(_ raw: String) throws -> String {
         var result = ""

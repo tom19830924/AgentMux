@@ -1,7 +1,5 @@
 import Foundation
 
-let version = "0.2.0"
-
 func helpText() -> String {
     let agents = Agent.allCases
         .map { "  \($0.id.padding(toLength: 8, withPad: " ", startingAt: 0)) \($0.displayName) \(ansi.dim("（\($0.injectionSummary)）"))" }
@@ -54,7 +52,7 @@ func run(_ argv: [String]) throws -> Int32 {
         Terminal.write(helpText())
         return 0
     case "-v", "--version":
-        Terminal.write("\(version)\n")
+        Terminal.write("\(Build.version)\n")
         return 0
     case "init":
         return try initCommand()

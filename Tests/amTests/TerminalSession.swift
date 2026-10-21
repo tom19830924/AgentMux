@@ -2,6 +2,8 @@ import Darwin
 import Foundation
 import Testing
 
+@testable import am
+
 /// The most recently built `am` binary.
 ///
 /// `Bundle.main` points at swiftpm's test runner rather than the products
@@ -36,6 +38,30 @@ func scratchDirectory() throws -> String {
     return root
 }
 
+
+
+/// A project with one gateway that both agents can use, for the tests that
+/// need something to launch rather than something to configure.
+@discardableResult
+func projectFixture(
+    gateways: GatewayFile? = nil, secrets: [String: String] = ["alpha_key": "sk-fixture-value"]
+) throws -> ProjectPaths {
+    let paths = ProjectPaths(root: try scratchDirectory())
+    try FileManager.default.createDirectory(
+        atPath: paths.directory, withIntermediateDirectories: true
+    )
+    let config = gateways ?? GatewayFile(version: 1, gateways: [
+        Gateway(id: "alpha", label: nil, agents: [
+            "claude": AgentConfig(settings: [
+                "ANTHROPIC_BASE_URL": "https://alpha.example.com",
+                "ANTHROPIC_AUTH_TOKEN": "${secret:alpha_key}",
+            ]),
+        ]),
+    ])
+    try GatewayStore.save(config, to: paths.configFile)
+    try SecretStore.save(secrets, to: paths.secretsFile)
+    return paths
+}
 
 /// Runs `am` with pipes rather than a terminal, for the paths that produce
 /// plain output. A pty would rewrite the line endings these assert on.
@@ -163,8 +189,20 @@ final class TerminalSession {
         )
     }
 
+    /// Waits with a deadline: a prompt that never returns would otherwise hang
+    /// the whole suite instead of failing it.
     @discardableResult
-    func waitUntilExit() -> Int32 {
+    func waitUntilExit(timeout: TimeInterval = 10) throws -> Int32 {
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning {
+            if Date() > deadline {
+                kill(process.processIdentifier, SIGKILL)
+                process.waitUntilExit()
+                throw TerminalSessionError("行程在 \(timeout) 秒內沒有結束。畫面：\n\(plain)")
+            }
+            drain()
+            usleep(20_000)
+        }
         process.waitUntilExit()
         drain()
         return process.terminationStatus
