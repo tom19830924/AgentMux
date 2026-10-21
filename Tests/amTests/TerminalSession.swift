@@ -36,6 +36,37 @@ func scratchDirectory() throws -> String {
     return root
 }
 
+
+/// Runs `am` with pipes rather than a terminal, for the paths that produce
+/// plain output. A pty would rewrite the line endings these assert on.
+@discardableResult
+func runAm(
+    _ arguments: [String], in directory: String, env extra: [String: String] = [:]
+) throws -> (status: Int32, stdout: String, stderr: String) {
+    let process = Process()
+    process.executableURL = amBinary
+    process.arguments = arguments
+    process.currentDirectoryURL = URL(fileURLWithPath: directory)
+
+    var environment = ProcessInfo.processInfo.environment
+    environment["NO_COLOR"] = "1"
+    for (key, value) in extra { environment[key] = value }
+    process.environment = environment
+
+    let out = Pipe(), err = Pipe()
+    process.standardOutput = out
+    process.standardError = err
+    try process.run()
+    let outData = out.fileHandleForReading.readDataToEndOfFile()
+    let errData = err.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    return (
+        process.terminationStatus,
+        String(decoding: outData, as: UTF8.self),
+        String(decoding: errData, as: UTF8.self)
+    )
+}
+
 /// Runs `am` with a pseudo-terminal on both ends, which is what makes the
 /// interactive paths reachable from a test: `isatty` answers yes, `tcsetattr`
 /// takes effect, and everything the UI draws can be read back and asserted on.

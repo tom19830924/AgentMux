@@ -89,4 +89,57 @@ struct TerminalUITests {
         #expect(try SecretStore.load(paths.secretsFile) == ["acme_key": "sk-live"])
         #expect(try GatewayStore.load(paths.configFile).gateways.map(\.id) == ["acme"])
     }
+
+    // MARK: 選單導航
+
+    private func menuSession() throws -> TerminalSession {
+        let session = try TerminalSession(["init"], in: try scratchDirectory())
+        try session.wait(for: "要設定哪個 agent")
+        return session
+    }
+
+    @Test("方向鍵往下換選項")
+    func arrowDownMovesTheSelection() throws {
+        let session = try menuSession()
+        session.send("\u{1B}[B\r")
+        try session.wait(for: "· Codex CLI")
+        session.interrupt()
+    }
+
+    /// Two items, so pressing up from the first lands on the last.
+    @Test("從第一項往上會繞回最後一項")
+    func arrowUpWrapsAround() throws {
+        let session = try menuSession()
+        session.send("\u{1B}[A\r")
+        try session.wait(for: "· Codex CLI")
+        session.interrupt()
+    }
+
+    @Test("j 與 k 和方向鍵一樣可以移動")
+    func viKeysMove() throws {
+        let session = try menuSession()
+        session.send("j\r")
+        try session.wait(for: "· Codex CLI")
+        session.interrupt()
+    }
+
+    @Test("輸入不合規則會當場說明並重問")
+    func validationAsksAgain() throws {
+        let session = try menuSession()
+        session.send("\r")
+        try session.wait(for: "要連到哪裡")
+        session.send("\r")
+        try session.wait(for: "gateway 名稱")
+
+        session.send("有空格 的名字\r")
+        try session.wait(for: "只能用英數字")
+        // The rejection and the re-ask land together, so count the prompt
+        // rather than waiting for a second one to arrive.
+        let asked = session.plain.components(separatedBy: "gateway 名稱").count - 1
+        #expect(asked >= 2)
+
+        session.send("fine-name\r")
+        try session.wait(for: "Base URL")
+        session.interrupt()
+    }
 }
