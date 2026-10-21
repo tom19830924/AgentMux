@@ -29,7 +29,7 @@ func helpText() -> String {
     範例：
       am add                      互動式新增，同一把金鑰可以給多個 agent 共用
       am claude                   跳選單，選完直接進 Claude Code
-      am claude -g mixroute       指定 gateway
+      am claude -g my-gateway     指定 gateway
       am codex -- --resume        -- 之後的參數原樣轉給 codex
 
     直接打 claude 或 codex 不受影響，照原本的設定檔運作。

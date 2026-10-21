@@ -224,7 +224,7 @@ private func confirmOverwrite(_ gateway: Gateway, agent: Agent, ui: Prompter) th
 }
 
 private func askGatewayName(existing: [String], ui: Prompter) throws -> String {
-    try ui.text("gateway 名稱", placeholder: "mixroute", defaultValue: nil) { value in
+    try ui.text("gateway 名稱", placeholder: "my-gateway", defaultValue: nil) { value in
         if value.isEmpty { return "這一項必填" }
         let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_-"))
         if value.rangeOfCharacter(from: allowed.inverted) != nil

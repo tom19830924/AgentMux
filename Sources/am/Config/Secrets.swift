@@ -97,7 +97,7 @@ enum SecretStore {
         } catch {
             throw AgentMuxError(
                 "無法解析 \(file)",
-                hint: "這個檔案必須是一個 JSON 物件，例如 { \"mixroute_key\": \"sk-...\" }"
+                hint: "這個檔案必須是一個 JSON 物件，例如 { \"my-gateway_key\": \"sk-...\" }"
             )
         }
     }
