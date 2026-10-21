@@ -79,20 +79,20 @@ private func project() throws -> String {
     try FileManager.default.createDirectory(atPath: paths.directory, withIntermediateDirectories: true)
     try GatewayStore.save(
         GatewayFile(version: 1, gateways: [
-            Gateway(id: "mixroute", label: nil, agents: [
+            Gateway(id: "my-gateway", label: nil, agents: [
                 "claude": AgentConfig(settings: [
-                    "ANTHROPIC_BASE_URL": "https://api.mixroute.ai",
-                    "ANTHROPIC_AUTH_TOKEN": "${secret:mixroute_key}",
+                    "ANTHROPIC_BASE_URL": "https://api.example.com",
+                    "ANTHROPIC_AUTH_TOKEN": "${secret:my-gateway_key}",
                 ]),
                 "codex": AgentConfig(
                     args: ["-c", "model_provider=\"agentmux\""],
-                    env: ["AGENTMUX_FAKE_KEY": "${secret:mixroute_key}"]
+                    env: ["AGENTMUX_FAKE_KEY": "${secret:my-gateway_key}"]
                 ),
             ]),
         ]),
         to: paths.configFile
     )
-    try SecretStore.save(["mixroute_key": token], to: paths.secretsFile)
+    try SecretStore.save(["my-gateway_key": token], to: paths.secretsFile)
     return root
 }
 
@@ -106,7 +106,7 @@ private struct Report: Decodable {
 struct CLITests {
     @Test("execvp 交出去的參數裡沒有金鑰，helper 才取得到")
     func noSecretInArgv() throws {
-        let run = try am(["claude", "-g", "mixroute"], in: try project())
+        let run = try am(["claude", "-g", "my-gateway"], in: try project())
         #expect(run.status == 0)
 
         let report = try JSONDecoder().decode(Report.self, from: Data(run.stdout.utf8))
@@ -116,7 +116,7 @@ struct CLITests {
 
     @Test("codex 的金鑰只走環境變數")
     func codexKeyInEnv() throws {
-        let run = try am(["codex", "-g", "mixroute"], in: try project())
+        let run = try am(["codex", "-g", "my-gateway"], in: try project())
         let report = try JSONDecoder().decode(Report.self, from: Data(run.stdout.utf8))
 
         #expect(report.env["AGENTMUX_FAKE_KEY"] == token)
@@ -125,7 +125,7 @@ struct CLITests {
 
     @Test("-- 之後的參數排在 gateway 參數後面並原樣傳遞")
     func passthrough() throws {
-        let run = try am(["codex", "-g", "mixroute", "--", "--resume", "abc"], in: try project())
+        let run = try am(["codex", "-g", "my-gateway", "--", "--resume", "abc"], in: try project())
         let report = try JSONDecoder().decode(Report.self, from: Data(run.stdout.utf8))
 
         #expect(report.argv.suffix(2) == ["--resume", "abc"])
@@ -134,7 +134,7 @@ struct CLITests {
 
     @Test("原樣傳回 agent 的 exit code")
     func exitCode() throws {
-        let run = try am(["codex", "-g", "mixroute"], in: try project(), env: ["FAKE_AGENT_EXIT": "42"])
+        let run = try am(["codex", "-g", "my-gateway"], in: try project(), env: ["FAKE_AGENT_EXIT": "42"])
         #expect(run.status == 42)
     }
 
@@ -148,7 +148,7 @@ struct CLITests {
             .appendingPathComponent("am-tmp-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
 
-        _ = try am(["claude", "-g", "mixroute"], in: directory, env: ["TMPDIR": temporary.path])
+        _ = try am(["claude", "-g", "my-gateway"], in: directory, env: ["TMPDIR": temporary.path])
 
         let written = try FileManager.default.contentsOfDirectory(atPath: temporary.path)
         #expect(written.isEmpty)
@@ -156,11 +156,11 @@ struct CLITests {
 
     @Test("--dry-run 不啟動，也不印出金鑰")
     func dryRun() throws {
-        let run = try am(["claude", "-g", "mixroute", "--dry-run"], in: try project())
+        let run = try am(["claude", "-g", "my-gateway", "--dry-run"], in: try project())
 
         #expect(run.status == 0)
         #expect(!run.stdout.contains(token))
-        #expect(run.stdout.contains("mixroute_key"))   // only the name
+        #expect(run.stdout.contains("my-gateway_key"))   // only the name
         #expect(run.stdout.contains("apiKeyHelper"))
         #expect(!run.stdout.contains("\"argv\""))      // the agent never ran
     }
@@ -189,7 +189,7 @@ struct CLITests {
         let nested = (root as NSString).appendingPathComponent("a/b")
         try FileManager.default.createDirectory(atPath: nested, withIntermediateDirectories: true)
 
-        #expect(try am(["claude", "-g", "mixroute"], in: nested).status == 0)
+        #expect(try am(["claude", "-g", "my-gateway"], in: nested).status == 0)
     }
 
     @Test("非互動終端機下 init 與 add 明確拒絕，不留下半成品")

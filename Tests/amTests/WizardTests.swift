@@ -70,8 +70,8 @@ struct AbortTests {
         // Answers run out at "模型（可留空）": the script ends mid-wizard, the
         // same place an interrupted run would stop.
         let ui = ScriptedPrompter([
-            "claude", "第三方 gateway", "mixroute",
-            "https://api.mixroute.ai", "輸入新的金鑰", "mixroute_key", "sk-abandoned",
+            "claude", "第三方 gateway", "my-gateway",
+            "https://api.example.com", "輸入新的金鑰", "my-gateway_key", "sk-abandoned",
         ])
 
         #expect(throws: (any Error).self) {
@@ -86,8 +86,8 @@ struct AbortTests {
     func abortedSecretIsNotStored() throws {
         let paths = try scratchProject()
         let ui = ScriptedPrompter([
-            "claude", "第三方 gateway", "mixroute",
-            "https://api.mixroute.ai", "輸入新的金鑰", "mixroute_key", "sk-abandoned",
+            "claude", "第三方 gateway", "my-gateway",
+            "https://api.example.com", "輸入新的金鑰", "my-gateway_key", "sk-abandoned",
         ])
 
         #expect(throws: (any Error).self) { try addCommand(paths: paths, prompter: ui) }
@@ -117,10 +117,10 @@ struct FirstRunTests {
         let ui = ScriptedPrompter([
             "claude",                   // 哪個 agent
             "custom",                   // 要連到哪裡
-            "mixroute",                 // gateway 名稱
-            "https://api.mixroute.ai",  // base URL
+            "my-gateway",                 // gateway 名稱
+            "https://api.example.com",  // base URL
             "輸入新的金鑰",              // 金鑰來源
-            "",                         // 名稱用預設 mixroute_key
+            "",                         // 名稱用預設 my-gateway_key
             "sk-real-token-value",      // 金鑰
             "claude-opus-5",            // 模型
         ])
@@ -128,13 +128,13 @@ struct FirstRunTests {
         #expect(try addCommand(paths: paths, prompter: ui) == 0)
 
         let config = try GatewayStore.load(paths.configFile)
-        let claude = config.gateway(id: "mixroute")?.agents["claude"]
-        #expect(claude?.settings?["ANTHROPIC_BASE_URL"] == "https://api.mixroute.ai")
-        #expect(claude?.settings?["ANTHROPIC_AUTH_TOKEN"] == "${secret:mixroute_key}")
+        let claude = config.gateway(id: "my-gateway")?.agents["claude"]
+        #expect(claude?.settings?["ANTHROPIC_BASE_URL"] == "https://api.example.com")
+        #expect(claude?.settings?["ANTHROPIC_AUTH_TOKEN"] == "${secret:my-gateway_key}")
 
         let raw = try String(contentsOfFile: paths.configFile, encoding: .utf8)
         #expect(!raw.contains("sk-real-token-value"))
-        #expect(try SecretStore.load(paths.secretsFile) == ["mixroute_key": "sk-real-token-value"])
+        #expect(try SecretStore.load(paths.secretsFile) == ["my-gateway_key": "sk-real-token-value"])
     }
 
     @Test("官方不問名稱也不問 base URL")
@@ -171,14 +171,14 @@ struct SharedKeyTests {
     private func projectWithClaude() throws -> ProjectPaths {
         try scratchProject(
             GatewayFile(version: 1, gateways: [
-                Gateway(id: "mixroute", label: nil, agents: [
+                Gateway(id: "my-gateway", label: nil, agents: [
                     "claude": AgentConfig(settings: [
-                        "ANTHROPIC_BASE_URL": "https://api.mixroute.ai",
-                        "ANTHROPIC_AUTH_TOKEN": "${secret:mixroute_key}",
+                        "ANTHROPIC_BASE_URL": "https://api.example.com",
+                        "ANTHROPIC_AUTH_TOKEN": "${secret:my-gateway_key}",
                     ]),
                 ]),
             ]),
-            secrets: ["mixroute_key": "sk-shared-token"]
+            secrets: ["my-gateway_key": "sk-shared-token"]
         )
     }
 
@@ -186,17 +186,17 @@ struct SharedKeyTests {
     func reuseKey() throws {
         let paths = try projectWithClaude()
         let ui = ScriptedPrompter([
-            "codex", "custom", "mixroute", "https://api.mixroute.ai/v1",
-            "chat", "mixroute_key", "gpt-5.6-luna",
+            "codex", "custom", "my-gateway", "https://api.example.com/v1",
+            "chat", "my-gateway_key", "gpt-5.6-luna",
         ])
 
         #expect(try addCommand(paths: paths, prompter: ui) == 0)
 
         let config = try GatewayStore.load(paths.configFile)
-        let codex = config.gateway(id: "mixroute")?.agents["codex"]
-        #expect(codex?.env?["AGENTMUX_CODEX_KEY"] == "${secret:mixroute_key}")
+        let codex = config.gateway(id: "my-gateway")?.agents["codex"]
+        #expect(codex?.env?["AGENTMUX_CODEX_KEY"] == "${secret:my-gateway_key}")
         // Nothing new was written, and the flow never asked to paste a key.
-        #expect(try SecretStore.load(paths.secretsFile) == ["mixroute_key": "sk-shared-token"])
+        #expect(try SecretStore.load(paths.secretsFile) == ["my-gateway_key": "sk-shared-token"])
         #expect(!ui.asked.contains { $0.contains("貼上") })
     }
 
@@ -226,12 +226,12 @@ struct SharedKeyTests {
         }
 
         let ui = Spy(ScriptedPrompter([
-            "codex", "custom", "mixroute", "https://api.mixroute.ai/v1",
-            "chat", "mixroute_key", "",
+            "codex", "custom", "my-gateway", "https://api.example.com/v1",
+            "chat", "my-gateway_key", "",
         ])) { secretChoices = $0 }
 
         _ = try addCommand(paths: paths, prompter: ui)
-        #expect(secretChoices.first?.value == "mixroute_key")
+        #expect(secretChoices.first?.value == "my-gateway_key")
         #expect(secretChoices.first?.label.contains("沿用") == true)
     }
 
@@ -245,7 +245,7 @@ struct SharedKeyTests {
 
         #expect(try addCommand(paths: paths, prompter: ui) == 0)
         #expect(try SecretStore.load(paths.secretsFile) == [
-            "mixroute_key": "sk-shared-token", "other_key": "sk-other-token",
+            "my-gateway_key": "sk-shared-token", "other_key": "sk-other-token",
         ])
     }
 }
@@ -255,26 +255,26 @@ struct WizardConfigTests {
     @Test("claude 自訂端點用 ${secret:} 引用，不寫明文")
     func claudeCustom() {
         let config = buildAgentConfig(WizardAnswers(
-            agent: .claude, mode: .custom, name: "mixroute",
-            baseURL: "https://api.mixroute.ai", secretName: "mixroute_key",
+            agent: .claude, mode: .custom, name: "my-gateway",
+            baseURL: "https://api.example.com", secretName: "my-gateway_key",
             model: "claude-opus-5", wireAPI: nil
         ))
-        #expect(config.settings?["ANTHROPIC_AUTH_TOKEN"] == "${secret:mixroute_key}")
+        #expect(config.settings?["ANTHROPIC_AUTH_TOKEN"] == "${secret:my-gateway_key}")
         #expect(config.settings?["ANTHROPIC_MODEL"] == "claude-opus-5")
     }
 
     @Test("codex 自訂端點：金鑰走 env_key，不進命令列")
     func codexCustom() {
         let config = buildAgentConfig(WizardAnswers(
-            agent: .codex, mode: .custom, name: "mixroute",
-            baseURL: "https://api.mixroute.ai/v1", secretName: "mixroute_key",
+            agent: .codex, mode: .custom, name: "my-gateway",
+            baseURL: "https://api.example.com/v1", secretName: "my-gateway_key",
             model: nil, wireAPI: "chat"
         ))
         let args = config.args ?? []
-        #expect(args.contains("model_providers.agentmux.base_url=\"https://api.mixroute.ai/v1\""))
+        #expect(args.contains("model_providers.agentmux.base_url=\"https://api.example.com/v1\""))
         #expect(args.contains("model_providers.agentmux.wire_api=\"chat\""))
         #expect(args.contains("model_providers.agentmux.env_key=\"AGENTMUX_CODEX_KEY\""))
-        #expect(config.env == ["AGENTMUX_CODEX_KEY": "${secret:mixroute_key}"])
+        #expect(config.env == ["AGENTMUX_CODEX_KEY": "${secret:my-gateway_key}"])
         #expect(!args.joined(separator: " ").contains("${secret:"))
     }
 

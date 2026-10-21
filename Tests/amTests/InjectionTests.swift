@@ -3,7 +3,7 @@ import Testing
 
 @testable import am
 
-private func resolver(_ secrets: [String: String] = ["mixroute_key": TOKEN]) -> SecretResolver {
+private func resolver(_ secrets: [String: String] = ["my-gateway_key": TOKEN]) -> SecretResolver {
     SecretResolver(secrets: secrets, secretsFile: "/tmp/secrets.json")
 }
 
@@ -21,8 +21,8 @@ struct ClaudeInjectionTests {
     @Test("設定以 JSON 帶在 --settings 上，不產生檔案")
     func settingsInline() throws {
         let config = AgentConfig(settings: [
-            "ANTHROPIC_BASE_URL": "https://api.mixroute.ai",
-            "ANTHROPIC_AUTH_TOKEN": "${secret:mixroute_key}",
+            "ANTHROPIC_BASE_URL": "https://api.example.com",
+            "ANTHROPIC_AUTH_TOKEN": "${secret:my-gateway_key}",
         ])
         let injection = try buildClaudeInjection(config, context(resolver()))
 
@@ -31,16 +31,16 @@ struct ClaudeInjectionTests {
             with: Data(injection.args[1].utf8)) as! [String: Any]
         let env = payload["env"] as! [String: String]
 
-        #expect(env["ANTHROPIC_BASE_URL"] == "https://api.mixroute.ai")
+        #expect(env["ANTHROPIC_BASE_URL"] == "https://api.example.com")
         // Emptied on purpose: this cancels whatever .claude/settings.json sets,
         // and apiKeyHelper supplies the real key on demand.
         #expect(env["ANTHROPIC_AUTH_TOKEN"] == "")
-        #expect(payload["apiKeyHelper"] as? String == "am secret get mixroute_key")
+        #expect(payload["apiKeyHelper"] as? String == "am secret get my-gateway_key")
     }
 
     @Test("金鑰不出現在命令列")
     func noSecretInArgs() throws {
-        let config = AgentConfig(settings: ["ANTHROPIC_AUTH_TOKEN": "${secret:mixroute_key}"])
+        let config = AgentConfig(settings: ["ANTHROPIC_AUTH_TOKEN": "${secret:my-gateway_key}"])
         let injection = try buildClaudeInjection(config, context(resolver()))
         #expect(!injection.args.joined(separator: " ").contains(TOKEN))
     }
@@ -74,7 +74,7 @@ struct CodexInjectionTests {
         let config = AgentConfig(
             args: ["-c", "model_providers.agentmux.env_key=\"AGENTMUX_CODEX_KEY\"",
                    "-c", "model_provider=\"agentmux\""],
-            env: ["AGENTMUX_CODEX_KEY": "${secret:mixroute_key}"]
+            env: ["AGENTMUX_CODEX_KEY": "${secret:my-gateway_key}"]
         )
         let injection = try buildCodexInjection(config, context(resolver()))
 
@@ -100,9 +100,9 @@ struct SecretTests {
     @Test("展開、遮蔽、偵測")
     func resolveAndMask() throws {
         let subject = resolver()
-        #expect(try subject.resolve("Bearer ${secret:mixroute_key}") == "Bearer \(TOKEN)")
+        #expect(try subject.resolve("Bearer ${secret:my-gateway_key}") == "Bearer \(TOKEN)")
         #expect(subject.containsSecret("x \(TOKEN) y"))
-        #expect(subject.mask(TOKEN).contains("(secret:mixroute_key)"))
+        #expect(subject.mask(TOKEN).contains("(secret:my-gateway_key)"))
         #expect(!subject.mask(TOKEN).contains(TOKEN))
     }
 

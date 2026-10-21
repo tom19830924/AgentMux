@@ -40,7 +40,7 @@ $ am init                   # 建立 .agentmux/ 並走完設定流程
 $ am add                    # 新增 gateway，或替既有 gateway 加上另一個 agent
 $ am ls                     # 列出這個專案的 gateway
 $ am claude                 # 跳選單，選完直接進 Claude Code
-$ am claude -g mixroute     # 指定 gateway，跳過選單
+$ am claude -g my-gateway     # 指定 gateway，跳過選單
 $ am codex -- --resume      # -- 之後的參數原樣轉給 codex
 $ am claude --dry-run       # 印出實際會注入什麼，不啟動
 ```
@@ -66,21 +66,21 @@ AgentMux **不會建立或修改任何 `.gitignore`** —— 要不要忽略 `.a
   "version": 1,
   "gateways": [
     {
-      "id": "mixroute",
+      "id": "my-gateway",
       "agents": {
         "claude": {
           "settings": {
-            "ANTHROPIC_BASE_URL": "https://api.mixroute.ai",
-            "ANTHROPIC_AUTH_TOKEN": "${secret:mixroute_key}"
+            "ANTHROPIC_BASE_URL": "https://api.example.com",
+            "ANTHROPIC_AUTH_TOKEN": "${secret:my-gateway_key}"
           }
         },
         "codex": {
           "args": [
-            "-c", "model_providers.agentmux.base_url=\"https://api.mixroute.ai\"",
+            "-c", "model_providers.agentmux.base_url=\"https://api.example.com\"",
             "-c", "model_providers.agentmux.env_key=\"AGENTMUX_CODEX_KEY\"",
             "-c", "model_provider=\"agentmux\""
           ],
-          "env": { "AGENTMUX_CODEX_KEY": "${secret:mixroute_key}" }
+          "env": { "AGENTMUX_CODEX_KEY": "${secret:my-gateway_key}" }
         }
       }
     }
@@ -98,10 +98,10 @@ gateway 只有一個名稱，選單上顯示它、`-g` 也用它（想讓選單�
 $ am add
 ? 要設定哪個 agent？                   Codex CLI
 ? 要連到哪裡？                         第三方 gateway
-? 要把 Codex CLI 加到哪個 gateway？    mixroute   (已有 claude)
-? Base URL                             https://api.mixroute.ai/v1
+? 要把 Codex CLI 加到哪個 gateway？    my-gateway (已有 claude)
+? Base URL                             https://api.example.com/v1
 ? API 形式                             chat
-? 金鑰要用哪一把？                     沿用 mixroute_key   ← 預設就選這個，不用重貼
+? 金鑰要用哪一把？                     沿用 my-gateway_key ← 預設就選這個，不用重貼
 ? 模型（可留空）                       gpt-5.6-luna
 ```
 
