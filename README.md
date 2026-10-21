@@ -9,6 +9,18 @@ $ am claude       # 跳選單選 gateway
 
 Swift 寫的 macOS CLI，**零外部依賴**。
 
+## 打 `am claude` 之後發生什麼事
+
+三件事，然後 `am` 就不見了：
+
+1. 讀 `.agentmux/gateways.json`，列出這個專案有哪些 gateway
+2. 你選一個
+3. 把自己**換成** `claude`，順便帶上那個 gateway 的設定
+
+第 3 步不是「啟動一個 claude」，而是這個行程直接變成 claude 本身。所以之後 Ctrl+C、結束狀態、終端機控制全都是 claude 的事，`am` 已經不在了，不會卡在中間。
+
+金鑰不會被帶在命令列上（那個 `ps` 看得到）。帶過去的是一句「需要金鑰時來問我」，claude 真的要用的時候才回頭跟 `am` 拿。
+
 ## 為什麼需要它
 
 `.claude/settings.json` 一個專案只能有一份，只能表達一組設定 —— 沒辦法「這個專案可用 A、B、C，每次啟動挑一個」。AgentMux 把 gateway 清單放進 `.agentmux/gateways.json`，啟動時才注入。
