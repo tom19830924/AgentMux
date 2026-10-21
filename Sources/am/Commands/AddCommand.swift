@@ -107,7 +107,7 @@ func addCommand(
     if mode == .custom {
         baseURL = try ui.text(
             "Base URL",
-            placeholder: agent == .codex ? "https://api.example.com/v1" : "https://api.example.com",
+            placeholder: "https://api.example.com",
             defaultValue: nil
         ) { value in
             if value.isEmpty { return "Required" }
