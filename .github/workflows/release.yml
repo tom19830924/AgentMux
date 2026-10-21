@@ -115,6 +115,7 @@ jobs:
           class Am < Formula
             desc "Per-project AI agent gateway switcher"
             homepage "https://github.com/${{ github.repository }}"
+            license "MIT"
             url "https://github.com/${{ github.repository }}/releases/download/${{ steps.ver.outputs.tag }}/${{ steps.pkg.outputs.name }}"
             sha256 "${{ steps.pkg.outputs.sha }}"
             version "${{ steps.ver.outputs.version }}"
