@@ -94,7 +94,7 @@ struct OverwriteTests {
         let paths = try existing()
         let ui = ScriptedPrompter([
             "claude", "第三方 gateway", "alpha", "覆蓋掉重新設定",
-            "https://new.example.com", "沿用 alpha_key", "",
+            "https://new.example.com", "沿用 alpha_key",
         ])
         #expect(try addCommand(paths: paths, prompter: ui) == 0)
 
@@ -116,11 +116,11 @@ struct AbortTests {
         try FileManager.default.createDirectory(atPath: root, withIntermediateDirectories: true)
         let paths = ProjectPaths(root: root)
 
-        // Answers run out at "模型（可留空）": the script ends mid-wizard, the
+        // Answers run out at "貼上 ... 的值": the script ends mid-wizard, the
         // same place an interrupted run would stop.
         let ui = ScriptedPrompter([
             "claude", "第三方 gateway", "my-gateway",
-            "https://api.example.com", "輸入新的金鑰", "my-gateway_key", "sk-abandoned",
+            "https://api.example.com", "輸入新的金鑰", "my-gateway_key",
         ])
 
         #expect(throws: (any Error).self) {
@@ -136,7 +136,7 @@ struct AbortTests {
         let paths = try scratchProject()
         let ui = ScriptedPrompter([
             "claude", "第三方 gateway", "my-gateway",
-            "https://api.example.com", "輸入新的金鑰", "my-gateway_key", "sk-abandoned",
+            "https://api.example.com", "輸入新的金鑰", "my-gateway_key",
         ])
 
         #expect(throws: (any Error).self) { try addCommand(paths: paths, prompter: ui) }
@@ -171,7 +171,6 @@ struct FirstRunTests {
             "輸入新的金鑰",              // 金鑰來源
             "",                         // 名稱用預設 my-gateway_key
             "sk-real-token-value",      // 金鑰
-            "claude-opus-5",            // 模型
         ])
 
         #expect(try addCommand(paths: paths, prompter: ui) == 0)
@@ -306,10 +305,9 @@ struct WizardConfigTests {
         let config = buildAgentConfig(WizardAnswers(
             agent: .claude, mode: .custom, name: "my-gateway",
             baseURL: "https://api.example.com", secretName: "my-gateway_key",
-            model: "claude-opus-5", wireAPI: nil
+            wireAPI: nil
         ))
         #expect(config.settings?["ANTHROPIC_AUTH_TOKEN"] == "${secret:my-gateway_key}")
-        #expect(config.settings?["ANTHROPIC_MODEL"] == "claude-opus-5")
     }
 
     @Test("codex 自訂端點：金鑰走 env_key，不進命令列")
@@ -317,7 +315,7 @@ struct WizardConfigTests {
         let config = buildAgentConfig(WizardAnswers(
             agent: .codex, mode: .custom, name: "my-gateway",
             baseURL: "https://api.example.com/v1", secretName: "my-gateway_key",
-            model: nil, wireAPI: "chat"
+            wireAPI: "chat"
         ))
         let args = config.args ?? []
         #expect(args.contains("model_providers.agentmux.base_url=\"https://api.example.com/v1\""))
@@ -331,7 +329,7 @@ struct WizardConfigTests {
     func codexOfficial() {
         let config = buildAgentConfig(WizardAnswers(
             agent: .codex, mode: .official, name: "openai",
-            baseURL: nil, secretName: nil, model: nil, wireAPI: nil
+            baseURL: nil, secretName: nil, wireAPI: nil
         ))
         #expect(config.args == ["-c", "model_provider=\"openai\""])
         #expect(config.env == nil)

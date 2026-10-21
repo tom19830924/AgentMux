@@ -94,7 +94,7 @@ private func chooseGateway(
     let chosen = try prompter.select(
         "選擇 gateway（\(agent.displayName)）",
         candidates.map {
-            Choice(value: $0.id, label: $0.displayName, hint: $0.agents[agent.id]?.model)
+            Choice(value: $0.id, label: $0.displayName)
         },
         initial: last
     )

@@ -138,7 +138,6 @@ $ am add
 ? Base URL                             https://api.example.com/v1
 ? API 形式                             chat
 ? 金鑰要用哪一把？                     沿用 my-gateway_key ← 預設就選這個，不用重貼
-? 模型（可留空）                       gpt-5.6-luna
 ```
 
 換成另一家 provider 時選「輸入新的金鑰」，它會存成另一個名稱，兩把互不影響。

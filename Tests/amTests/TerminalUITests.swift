@@ -81,8 +81,7 @@ struct TerminalUITests {
     func fullRunThroughARealTerminal() throws {
         let (session, root) = try sessionAtKeyPrompt()
         session.send("sk-live\r")
-        try session.wait(for: "模型")
-        session.send("\r")
+        try session.wait(for: "已設定")
         #expect(try session.waitUntilExit() == 0)
 
         let paths = ProjectPaths(root: root)

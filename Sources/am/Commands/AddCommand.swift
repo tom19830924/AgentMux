@@ -19,7 +19,6 @@ struct WizardAnswers {
     var baseURL: String?
     /// Secret to reference, or nil when the gateway needs no key.
     var secretName: String?
-    var model: String?
     var wireAPI: String?
 }
 
@@ -36,8 +35,7 @@ func buildAgentConfig(_ answers: WizardAnswers) -> AgentConfig {
             "ANTHROPIC_BASE_URL": answers.mode == .official ? "" : (answers.baseURL ?? ""),
             "ANTHROPIC_AUTH_TOKEN": secretRef ?? "",
         ]
-        if let model = answers.model { settings["ANTHROPIC_MODEL"] = model }
-        return AgentConfig(model: answers.model, settings: settings)
+        return AgentConfig(settings: settings)
 
     case .codex:
         var args: [String] = []
@@ -52,12 +50,11 @@ func buildAgentConfig(_ answers: WizardAnswers) -> AgentConfig {
             }
             args += ["-c", "model_provider=\"\(codexProvider)\""]
         }
-        if let model = answers.model { args += ["-c", "model=\"\(model)\""] }
 
         // The key travels in the environment: command lines are visible in `ps aux`.
         let env = (answers.mode == .custom ? secretRef : nil)
             .map { [codexKeyVariable: $0] }
-        return AgentConfig(model: answers.model, args: args, env: env)
+        return AgentConfig(args: args, env: env)
     }
 }
 
@@ -130,17 +127,11 @@ func addCommand(
         config: config, gatewayID: gatewayID, mode: mode, paths: paths, ui: ui
     )
 
-    let model = try ui.text(
-        "模型（可留空）",
-        placeholder: agent == .claude ? "claude-opus-5" : "gpt-5.6-luna",
-        defaultValue: "",
-        validate: nil
-    )
 
     let agentConfig = buildAgentConfig(
         WizardAnswers(
             agent: agent, mode: mode, name: gatewayID, baseURL: baseURL,
-            secretName: secret.name, model: model.isEmpty ? nil : model, wireAPI: wireAPI
+            secretName: secret.name, wireAPI: wireAPI
         )
     )
 
@@ -169,7 +160,7 @@ func addCommand(
     try GatewayStore.save(config, to: paths.configFile)
 
     ui.outro("\(ansi.green("已設定")) \(gatewayID) / \(agent.id)　"
-        + ansi.dim("試試 am \(agent.id) -g \(gatewayID) --dry-run"))
+        + ansi.dim("試試 am \(agent.id)"))
     return 0
 }
 

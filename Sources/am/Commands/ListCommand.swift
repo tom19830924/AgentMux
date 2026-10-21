@@ -34,8 +34,7 @@ func listCommand() throws -> Int32 {
                 status = ansi.red("缺少金鑰：\(missing.joined(separator: ", "))")
             }
 
-            let model = agentConfig.model.map { " \(ansi.dim($0))" } ?? ""
-            lines.append("  \(agent.id.padding(toLength: 7, withPad: " ", startingAt: 0))\(model)  \(status)")
+            lines.append("  \(agent.id.padding(toLength: 7, withPad: " ", startingAt: 0))  \(status)")
         }
         lines.append("")
     }

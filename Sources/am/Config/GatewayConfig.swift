@@ -10,18 +10,15 @@ import Foundation
 ///   - `env` are environment variables for the launched process. Secrets belong
 ///     here rather than in `args`, which are visible in `ps aux`.
 struct AgentConfig: Codable, Equatable {
-    var model: String?
     var settings: [String: String]?
     var args: [String]?
     var env: [String: String]?
 
     init(
-        model: String? = nil,
         settings: [String: String]? = nil,
         args: [String]? = nil,
         env: [String: String]? = nil
     ) {
-        self.model = model
         self.settings = settings
         self.args = args
         self.env = env
