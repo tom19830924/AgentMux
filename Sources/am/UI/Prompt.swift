@@ -113,11 +113,11 @@ struct TerminalPrompter: Prompter {
     }
 
     func password(_ message: String) throws -> String {
+        let prefix = "\(ansi.cyan("│"))  "
         while true {
-            Terminal.write("\(ansi.cyan("◆"))  \(message)\n\(ansi.cyan("│"))  ")
-            let line = Terminal.withoutEcho { readLine(strippingNewline: true) }
+            Terminal.write("\(ansi.cyan("◆"))  \(message)\n\(prefix)")
+            let line = try Terminal.readSecret(redrawing: prefix)
             Terminal.write("\n")
-            guard let line else { throw CancelledError() }
             if line.isEmpty {
                 Terminal.write("\(ansi.red("▲"))  這一項必填\n")
                 continue

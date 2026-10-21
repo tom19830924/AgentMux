@@ -14,43 +14,98 @@ enum Terminal {
         isatty(STDIN_FILENO) == 1 && isatty(STDOUT_FILENO) == 1
     }
 
-    /// Runs `body` with the terminal in raw mode.
-    ///
-    /// The original settings are restored through `defer`, so they come back on
-    /// every path — including a thrown error. Leaving raw mode behind would
-    /// hand the user a terminal that no longer echoes what they type.
-    static func withRawMode<T>(_ body: () throws -> T) rethrows -> T {
+    /// Settings to restore from the signal handler, which `defer` cannot reach.
+    /// A handler may only touch async-signal-safe state, so these are plain
+    /// globals rather than anything that locks.
+    private nonisolated(unsafe) static var savedTermios = termios()
+    private nonisolated(unsafe) static var savedTermiosIsValid = false
+    private nonisolated(unsafe) static var handlerInstalled = false
+
+    /// Ctrl-C arrives as a signal, which unwinds nothing: without this the
+    /// process would die mid-prompt and leave the terminal in raw mode, where
+    /// the shell no longer echoes what the user types.
+    private static let restoreOnSignal: @convention(c) (Int32) -> Void = { signalNumber in
+        if Terminal.savedTermiosIsValid {
+            tcsetattr(STDIN_FILENO, TCSANOW, &Terminal.savedTermios)
+        }
+        _ = ansi.showCursorBytes.withUnsafeBufferPointer {
+            Darwin.write(STDOUT_FILENO, $0.baseAddress, $0.count)
+        }
+        // Die of the original signal, so the exit status still says "interrupted".
+        signal(signalNumber, SIG_DFL)
+        raise(signalNumber)
+    }
+
+    private static func applying<T>(
+        _ configure: (inout termios) -> Void, _ body: () throws -> T
+    ) rethrows -> T {
         var original = termios()
         guard tcgetattr(STDIN_FILENO, &original) == 0 else { return try body() }
 
-        var raw = original
-        raw.c_lflag &= ~(UInt(ECHO) | UInt(ICANON))
-        raw.c_cc.16 = 1  // VMIN: block until at least one byte
-        raw.c_cc.17 = 0  // VTIME: no timeout
-        tcsetattr(STDIN_FILENO, TCSANOW, &raw)
+        savedTermios = original
+        savedTermiosIsValid = true
+        if !handlerInstalled {
+            handlerInstalled = true
+            signal(SIGINT, restoreOnSignal)
+            signal(SIGTERM, restoreOnSignal)
+        }
+
+        var changed = original
+        configure(&changed)
+        tcsetattr(STDIN_FILENO, TCSANOW, &changed)
 
         defer {
             var restore = original
             tcsetattr(STDIN_FILENO, TCSANOW, &restore)
-            write(ansi.showCursor)
+            savedTermiosIsValid = false
         }
         return try body()
     }
 
-    /// Reads with echo disabled but line editing intact, for password entry.
-    static func withoutEcho<T>(_ body: () throws -> T) rethrows -> T {
-        var original = termios()
-        guard tcgetattr(STDIN_FILENO, &original) == 0 else { return try body() }
+    /// Runs `body` with the terminal in raw mode.
+    ///
+    /// The original settings come back through `defer` on every ordinary path,
+    /// and through the signal handler when the process is killed outright.
+    static func withRawMode<T>(_ body: () throws -> T) rethrows -> T {
+        try applying({ raw in
+            raw.c_lflag &= ~(UInt(ECHO) | UInt(ICANON))
+            raw.c_cc.16 = 1  // VMIN: block until at least one byte
+            raw.c_cc.17 = 0  // VTIME: no timeout
+        }, {
+            defer { write(ansi.showCursor) }
+            return try body()
+        })
+    }
 
-        var quiet = original
-        quiet.c_lflag &= ~UInt(ECHO)
-        tcsetattr(STDIN_FILENO, TCSANOW, &quiet)
-
-        defer {
-            var restore = original
-            tcsetattr(STDIN_FILENO, TCSANOW, &restore)
+    /// Reads a secret, drawing one dot per character: the length shows, the
+    /// value does not. Raw mode is what makes the substitution possible —
+    /// with the terminal's own echo there is nothing to replace.
+    ///
+    /// `prefix` is reprinted on every redraw, since erasing a character means
+    /// clearing the whole line.
+    /// Reads a secret, drawing one dot per character: the length shows, the
+    /// value does not. Raw mode is what makes the substitution possible — with
+    /// the terminal's own echo there is nothing to replace.
+    ///
+    /// `prefix` is reprinted on every redraw, since erasing a character means
+    /// clearing the whole line. The key handling itself lives in `SecretEntry`,
+    /// where it can be tested without a terminal.
+    static func readSecret(redrawing prefix: String) throws -> String {
+        try withRawMode {
+            var entry = SecretEntry()
+            while true {
+                guard let byte = readByte() else { throw CancelledError() }
+                switch entry.feed(byte) {
+                case let .done(value):
+                    return value
+                case .cancelled:
+                    throw CancelledError()
+                case .waiting:
+                    let dots = String(repeating: "•", count: entry.maskLength)
+                    write(ansi.clearLine + prefix + ansi.dim(dots))
+                }
+            }
         }
-        return try body()
     }
 
     static func readKey() -> Key? {
@@ -90,6 +145,7 @@ enum ansi {
 
     static let hideCursor = "\u{1B}[?25l"
     static let showCursor = "\u{1B}[?25h"
+    static let showCursorBytes: [UInt8] = Array("\u{1B}[?25h".utf8)
     static let clearLine = "\u{1B}[2K\r"
     static func up(_ count: Int) -> String { count > 0 ? "\u{1B}[\(count)A" : "" }
 
