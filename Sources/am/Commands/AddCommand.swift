@@ -1,8 +1,9 @@
 import Foundation
 
-/// The Codex provider id defined through `-c` overrides, and the variable its
-/// `env_key` points at.
-private let codexProvider = "agentmux"
+/// The variable the Codex provider's `env_key` points at. The provider's id is
+/// the gateway's own name: `codex /status` prints that id, so sharing one id
+/// across every gateway would make the line say the same thing no matter which
+/// one was picked.
 private let codexKeyVariable = "AGENTMUX_CODEX_KEY"
 
 enum GatewayMode: String {
@@ -42,13 +43,14 @@ func buildAgentConfig(_ answers: WizardAnswers) -> AgentConfig {
         if answers.mode == .official {
             args += ["-c", "model_provider=\"openai\""]
         } else {
-            args += ["-c", "model_providers.\(codexProvider).name=\"\(answers.name)\""]
-            args += ["-c", "model_providers.\(codexProvider).base_url=\"\(answers.baseURL ?? "")\""]
-            args += ["-c", "model_providers.\(codexProvider).wire_api=\"\(answers.wireAPI ?? "chat")\""]
+            let provider = answers.name
+            args += ["-c", "model_providers.\(provider).name=\"\(answers.name)\""]
+            args += ["-c", "model_providers.\(provider).base_url=\"\(answers.baseURL ?? "")\""]
+            args += ["-c", "model_providers.\(provider).wire_api=\"\(answers.wireAPI ?? "chat")\""]
             if secretRef != nil {
-                args += ["-c", "model_providers.\(codexProvider).env_key=\"\(codexKeyVariable)\""]
+                args += ["-c", "model_providers.\(provider).env_key=\"\(codexKeyVariable)\""]
             }
-            args += ["-c", "model_provider=\"\(codexProvider)\""]
+            args += ["-c", "model_provider=\"\(provider)\""]
         }
 
         // The key travels in the environment: command lines are visible in `ps aux`.

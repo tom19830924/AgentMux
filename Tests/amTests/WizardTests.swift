@@ -318,11 +318,40 @@ struct WizardConfigTests {
             wireAPI: "chat"
         ))
         let args = config.args ?? []
-        #expect(args.contains("model_providers.agentmux.base_url=\"https://api.example.com/v1\""))
-        #expect(args.contains("model_providers.agentmux.wire_api=\"chat\""))
-        #expect(args.contains("model_providers.agentmux.env_key=\"AGENTMUX_CODEX_KEY\""))
+        #expect(args.contains("model_providers.my-gateway.base_url=\"https://api.example.com/v1\""))
+        #expect(args.contains("model_providers.my-gateway.wire_api=\"chat\""))
+        #expect(args.contains("model_providers.my-gateway.env_key=\"AGENTMUX_CODEX_KEY\""))
         #expect(config.env == ["AGENTMUX_CODEX_KEY": "${secret:my-gateway_key}"])
         #expect(!args.joined(separator: " ").contains("${secret:"))
+    }
+
+    /// Codex's `/status` prints the provider's id — the key the table is
+    /// defined under — not its `name` field. Registering every gateway under
+    /// one shared id made that line read "agentmux" whichever gateway the user
+    /// had picked, which is the one thing it is there to tell them.
+    @Test("provider id 就是 gateway 名稱，/status 才顯示得出選了哪個")
+    func providerIdIsTheGatewayName() {
+        let config = buildAgentConfig(WizardAnswers(
+            agent: .codex, mode: .custom, name: "mixroute",
+            baseURL: "https://api.example.com/v1", secretName: "mixroute_key",
+            wireAPI: "chat"
+        ))
+        let args = config.args ?? []
+        #expect(args.contains("model_provider=\"mixroute\""))
+        #expect(args.contains("model_providers.mixroute.base_url=\"https://api.example.com/v1\""))
+        #expect(!args.joined(separator: " ").contains("agentmux"))
+    }
+
+    @Test("換一個 gateway 名稱，provider id 跟著換")
+    func anotherGatewayGetsItsOwnId() {
+        let config = buildAgentConfig(WizardAnswers(
+            agent: .codex, mode: .custom, name: "openrouter",
+            baseURL: "https://openrouter.ai/api/v1", secretName: "openrouter_key",
+            wireAPI: "chat"
+        ))
+        let args = config.args ?? []
+        #expect(args.contains("model_provider=\"openrouter\""))
+        #expect(args.contains("model_providers.openrouter.name=\"openrouter\""))
     }
 
     @Test("codex 官方切回內建 provider，不帶環境變數")

@@ -124,9 +124,9 @@ AgentMux **不會建立或修改任何 `.gitignore`** —— 要不要忽略 `.a
         },
         "codex": {
           "args": [
-            "-c", "model_providers.agentmux.base_url=\"https://api.example.com\"",
-            "-c", "model_providers.agentmux.env_key=\"AGENTMUX_CODEX_KEY\"",
-            "-c", "model_provider=\"agentmux\""
+            "-c", "model_providers.my-gateway.base_url=\"https://api.example.com\"",
+            "-c", "model_providers.my-gateway.env_key=\"AGENTMUX_CODEX_KEY\"",
+            "-c", "model_provider=\"my-gateway\""
           ],
           "env": { "AGENTMUX_CODEX_KEY": "${secret:my-gateway_key}" }
         }
