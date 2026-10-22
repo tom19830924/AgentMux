@@ -1,8 +1,53 @@
 import Foundation
 
+/// What the run is for. Each of these ends somewhere different, so asking for
+/// two of them asks for two different things — which an enum cannot hold, and
+/// so cannot be left for a later branch to resolve by accident.
+enum RunMode: Equatable {
+    /// Hand the process over to the agent.
+    case launch
+    /// Print the injection instead.
+    case dryRun
+    /// Write it where the agent's own tooling reads it.
+    case link
+    /// Take that back out.
+    case unlink
+}
+
+/// The flags that name a mode, paired with the mode they name.
+///
+/// The parser reads this; the help text spells the same flags out by hand,
+/// because a generated list cannot say what each one is for. What keeps the
+/// two together is a test that every flag here appears in `--help`.
+let runModeFlags: [(flag: String, mode: RunMode)] = [
+    ("--dry-run", .dryRun),
+    ("--link", .link),
+    ("--unlink", .unlink),
+]
+
+/// Works out the mode from the arguments, refusing two that disagree.
+///
+/// These are only the arguments before the agent's name — `splitAtAgent` has
+/// already set the agent's own aside — so a flag of the same name there is the
+/// agent's business and never reaches this.
+func runMode(from arguments: [String]) throws -> RunMode {
+    var chosen: (flag: String, mode: RunMode)?
+    for argument in arguments {
+        guard let found = runModeFlags.first(where: { $0.flag == argument }) else { continue }
+        if let chosen, chosen.mode != found.mode {
+            throw AgentMuxError(
+                "\(chosen.flag) and \(found.flag) ask for different things",
+                hint: "Pick one of \(runModeFlags.map(\.flag).joined(separator: ", "))"
+            )
+        }
+        chosen = found
+    }
+    return chosen?.mode ?? .launch
+}
+
 struct RunOptions {
     var gateway: String?
-    var dryRun: Bool = false
+    var mode: RunMode = .launch
     var passthrough: [String] = []
 }
 
@@ -10,6 +55,19 @@ struct RunOptions {
 func runCommand(agentId: String, options: RunOptions, prompter: Prompter) throws -> Int32 {
     let agent = try Agent.named(agentId)
     let paths = try ProjectPaths.require()
+
+    // Neither needs a gateway, and both do the same thing for every agent, so
+    // neither has to wait for one to be configured first.
+    switch options.mode {
+    case .link:
+        let preparation = try prepareLink(for: agent, paths: paths, prompter: prompter)
+        return try writeLink(for: agent, paths: paths, preparation: preparation)
+    case .unlink:
+        return try unlinkDirectory(for: agent, paths: paths)
+    default:
+        break
+    }
+
     let config = try GatewayStore.load(paths.configFile)
 
     guard !config.gateways.isEmpty else {
@@ -55,7 +113,7 @@ func runCommand(agentId: String, options: RunOptions, prompter: Prompter) throws
         )
     }
 
-    if options.dryRun {
+    if options.mode == .dryRun {
         printDryRun(command: agent.command, args: args, env: injection.env, resolver: resolver)
         return 0
     }
@@ -87,7 +145,7 @@ private func chooseGateway(
     guard Terminal.isInteractive else {
         throw AgentMuxError(
             "No terminal here, so there is no menu to show",
-            hint: "Name the gateway with -g, for example: am \(agent.id) -g \(candidates[0].id)"
+            hint: "Name the gateway with -g, for example: am -g \(candidates[0].id) \(agent.id)"
         )
     }
 

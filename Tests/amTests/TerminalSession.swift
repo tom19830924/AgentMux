@@ -63,6 +63,21 @@ func projectFixture(
     return paths
 }
 
+
+/// Runs git in a directory, for the tests that need a repository to exist.
+@discardableResult
+func runGit(_ arguments: [String], in directory: String) throws -> Int32 {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+    process.arguments = ["git"] + arguments
+    process.currentDirectoryURL = URL(fileURLWithPath: directory)
+    process.standardOutput = FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    process.waitUntilExit()
+    return process.terminationStatus
+}
+
 /// Runs `am` with pipes rather than a terminal, for the paths that produce
 /// plain output. A pty would rewrite the line endings these assert on.
 @discardableResult
@@ -76,6 +91,10 @@ func runAm(
 
     var environment = ProcessInfo.processInfo.environment
     environment["NO_COLOR"] = "1"
+    // Same stand-in the pty runner uses: without it a test that reaches the
+    // launch would exec whatever `claude` is installed on this machine.
+    environment["AGENTMUX_CLAUDE_COMMAND"] = fakeAgentPath
+    environment["AGENTMUX_CODEX_COMMAND"] = fakeAgentPath
     for (key, value) in extra { environment[key] = value }
     process.environment = environment
 

@@ -34,7 +34,11 @@ enum Agent: String, CaseIterable {
         }
     }
 
-    /// One line shown by `am ls` explaining how this agent receives the gateway.
+    /// The directory this agent keeps its own configuration in, inside a
+    /// project. `--link` moves it into `.agentmux/` and links it back.
+    var configDirectoryName: String { ".\(rawValue)" }
+
+    /// One line shown by `am --help` explaining how this agent receives the gateway.
     var injectionSummary: String {
         switch self {
         case .claude: "--settings + apiKeyHelper"

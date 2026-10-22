@@ -1,5 +1,3 @@
-import Foundation
-
 struct Choice {
     let value: String
     let label: String

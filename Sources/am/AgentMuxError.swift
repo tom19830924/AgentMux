@@ -1,5 +1,3 @@
-import Foundation
-
 /// An error whose message is meant to be read by the user. `main` prints it on
 /// its own; anything else would surface as a crash.
 struct AgentMuxError: Error {

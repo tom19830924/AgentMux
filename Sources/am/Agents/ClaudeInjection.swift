@@ -20,31 +20,46 @@ import Foundation
 /// string — which cancels whatever the project's file sets — and `apiKeyHelper`
 /// names a command Claude Code runs when it actually needs the key. The key
 /// therefore never lands on disk and never reaches a command line.
+///
+/// What a gateway amounts to for Claude Code: the `env` block it should see,
+/// and the command that fetches the key when the token is a whole reference.
+struct ClaudeSettings: Equatable {
+    var env: [String: String] = [:]
+    var apiKeyHelper: String?
+
+    var isEmpty: Bool { env.isEmpty && apiKeyHelper == nil }
+
+    func jsonObject() -> [String: Any] {
+        var object: [String: Any] = ["env": env]
+        if let apiKeyHelper { object["apiKeyHelper"] = apiKeyHelper }
+        return object
+    }
+}
+
+func claudeSettings(_ config: AgentConfig, _ context: InjectionContext) throws -> ClaudeSettings {
+    var settings = ClaudeSettings()
+
+    for (key, raw) in config.settings ?? [:] {
+        if key == "ANTHROPIC_AUTH_TOKEN", let name = wholeSecretReference(raw) {
+            settings.apiKeyHelper = try context.secretHelperCommand(name)
+            settings.env[key] = ""
+        } else {
+            settings.env[key] = try context.resolver.resolve(raw)
+        }
+    }
+
+    return settings
+}
+
 func buildClaudeInjection(_ config: AgentConfig, _ context: InjectionContext) throws -> Injection {
     var injection = Injection()
     injection.env = try context.resolver.resolve(config.env)
 
-    var settingsEnv: [String: String] = [:]
-    var helperFor: String?
-
-    for (key, raw) in config.settings ?? [:] {
-        if key == "ANTHROPIC_AUTH_TOKEN", let name = wholeSecretReference(raw) {
-            helperFor = name
-            settingsEnv[key] = ""
-        } else {
-            settingsEnv[key] = try context.resolver.resolve(raw)
-        }
-    }
-
-    var payload: [String: Any] = ["env": settingsEnv]
-    if let helperFor {
-        payload["apiKeyHelper"] = try context.secretHelperCommand(helperFor)
-    }
-
+    let settings = try claudeSettings(config, context)
     var args = try (config.args ?? []).map { try context.resolver.resolve($0) }
-    if !settingsEnv.isEmpty || helperFor != nil {
+    if !settings.isEmpty {
         let data = try JSONSerialization.data(
-            withJSONObject: payload, options: [.sortedKeys, .withoutEscapingSlashes]
+            withJSONObject: settings.jsonObject(), options: [.sortedKeys, .withoutEscapingSlashes]
         )
         args.insert(contentsOf: ["--settings", String(decoding: data, as: UTF8.self)], at: 0)
     }

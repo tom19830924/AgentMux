@@ -1,5 +1,4 @@
 import Darwin
-import Foundation
 
 /// Replaces this process with the agent.
 ///

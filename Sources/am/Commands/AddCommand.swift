@@ -30,7 +30,7 @@ func buildAgentConfig(_ answers: WizardAnswers) -> AgentConfig {
 
     switch answers.agent {
     case .claude:
-        var settings: [String: String] = [
+        let settings: [String: String] = [
             // An empty value cancels whatever .claude/settings.json sets, which
             // is how "use the CLI's own login" is expressed.
             "ANTHROPIC_BASE_URL": answers.mode == .official ? "" : (answers.baseURL ?? ""),
@@ -132,7 +132,6 @@ func addCommand(
     let secret = try chooseSecret(
         config: config, gatewayID: gatewayID, mode: mode, paths: paths, ui: ui
     )
-
 
     let agentConfig = buildAgentConfig(
         WizardAnswers(

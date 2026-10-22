@@ -106,7 +106,7 @@ private struct Report: Decodable {
 struct CLITests {
     @Test("No key in the argv handed to execvp; the helper fetches it")
     func noSecretInArgv() throws {
-        let run = try am(["claude", "-g", "my-gateway"], in: try project())
+        let run = try am(["-g", "my-gateway", "claude"], in: try project())
         #expect(run.status == 0)
 
         let report = try JSONDecoder().decode(Report.self, from: Data(run.stdout.utf8))
@@ -116,25 +116,25 @@ struct CLITests {
 
     @Test("A Codex key travels only in the environment")
     func codexKeyInEnv() throws {
-        let run = try am(["codex", "-g", "my-gateway"], in: try project())
+        let run = try am(["-g", "my-gateway", "codex"], in: try project())
         let report = try JSONDecoder().decode(Report.self, from: Data(run.stdout.utf8))
 
         #expect(report.env["AGENTMUX_FAKE_KEY"] == token)
         #expect(!report.argv.joined(separator: " ").contains(token))
     }
 
-    @Test("Arguments after -- follow the gateway's own, untouched")
+    @Test("Arguments after the agent follow the gateway's own, untouched")
     func passthrough() throws {
-        let run = try am(["codex", "-g", "my-gateway", "--", "--resume", "abc"], in: try project())
+        let run = try am(["-g", "my-gateway", "codex", "resume", "abc"], in: try project())
         let report = try JSONDecoder().decode(Report.self, from: Data(run.stdout.utf8))
 
-        #expect(report.argv.suffix(2) == ["--resume", "abc"])
+        #expect(report.argv.suffix(2) == ["resume", "abc"])
         #expect(report.argv.first == "-c")
     }
 
     @Test("The agent's exit code is passed straight back")
     func exitCode() throws {
-        let run = try am(["codex", "-g", "my-gateway"], in: try project(), env: ["FAKE_AGENT_EXIT": "42"])
+        let run = try am(["-g", "my-gateway", "codex"], in: try project(), env: ["FAKE_AGENT_EXIT": "42"])
         #expect(run.status == 42)
     }
 
@@ -148,7 +148,7 @@ struct CLITests {
             .appendingPathComponent("am-tmp-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true)
 
-        _ = try am(["claude", "-g", "my-gateway"], in: directory, env: ["TMPDIR": temporary.path])
+        _ = try am(["-g", "my-gateway", "claude"], in: directory, env: ["TMPDIR": temporary.path])
 
         let written = try FileManager.default.contentsOfDirectory(atPath: temporary.path)
         #expect(written.isEmpty)
@@ -156,7 +156,7 @@ struct CLITests {
 
     @Test("--dry-run starts nothing and prints no key")
     func dryRun() throws {
-        let run = try am(["claude", "-g", "my-gateway", "--dry-run"], in: try project())
+        let run = try am(["-g", "my-gateway", "--dry-run", "claude"], in: try project())
 
         #expect(run.status == 0)
         #expect(!run.stdout.contains(token))
@@ -165,11 +165,14 @@ struct CLITests {
         #expect(!run.stdout.contains("\"argv\""))      // the agent never ran
     }
 
-    @Test("An unknown option suggests -- instead")
+    /// Before the agent's name, am owns every word, so one it does not know is
+    /// an error — and the fix is a position, not a separator.
+    @Test("An unknown option before the agent says to move it after")
     func unknownOption() throws {
-        let run = try am(["claude", "--resume"], in: try project())
+        let run = try am(["--resume", "claude"], in: try project())
         #expect(run.status == 1)
-        #expect(run.stderr.contains("--"))
+        #expect(run.stderr.contains("--resume"))
+        #expect(run.stderr.contains("am claude --resume"))
     }
 
     @Test("With no config it points at am init")
@@ -178,7 +181,7 @@ struct CLITests {
             .appendingPathComponent("am-empty-\(UUID().uuidString)").path
         try FileManager.default.createDirectory(atPath: empty, withIntermediateDirectories: true)
 
-        let run = try am(["claude", "-g", "x"], in: empty)
+        let run = try am(["-g", "x", "claude"], in: empty)
         #expect(run.status == 1)
         #expect(run.stderr.contains("am init"))
     }
@@ -189,7 +192,7 @@ struct CLITests {
         let nested = (root as NSString).appendingPathComponent("a/b")
         try FileManager.default.createDirectory(atPath: nested, withIntermediateDirectories: true)
 
-        #expect(try am(["claude", "-g", "my-gateway"], in: nested).status == 0)
+        #expect(try am(["-g", "my-gateway", "claude"], in: nested).status == 0)
     }
 
     @Test("Without a terminal, init and add refuse outright")

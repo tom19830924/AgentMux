@@ -25,7 +25,7 @@ struct RunCommandGuardTests {
     @Test("An unknown -g lists the ones that exist")
     func unknownGatewayListsTheOnesThatExist() throws {
         let paths = try projectFixture()
-        let run = try runAm(["claude", "-g", "nope"], in: paths.root)
+        let run = try runAm(["-g", "nope", "claude"], in: paths.root)
         #expect(run.status != 0)
         #expect(run.stderr.contains("nope"))
         #expect(run.stderr.contains("alpha"))
@@ -39,7 +39,7 @@ struct RunCommandGuardTests {
             Gateway(id: "alpha", label: nil, agents: ["claude": AgentConfig(settings: [:])]),
             Gateway(id: "beta", label: nil, agents: ["codex": AgentConfig(args: [])]),
         ]))
-        let run = try runAm(["codex", "-g", "alpha"], in: paths.root)
+        let run = try runAm(["-g", "alpha", "codex"], in: paths.root)
         #expect(run.status != 0)
         #expect(run.stderr.contains("alpha"))
         #expect(run.stderr.contains("beta"))  // the hint names what is available
@@ -72,7 +72,7 @@ struct RunCommandGuardTests {
             ]),
             secrets: ["alpha_key": "sk-would-leak"]
         )
-        let run = try runAm(["codex", "-g", "leaky"], in: paths.root)
+        let run = try runAm(["-g", "leaky", "codex"], in: paths.root)
         #expect(run.status != 0)
         #expect(run.stderr.contains("command line"))
         #expect(!run.stderr.contains("sk-would-leak"))
@@ -86,7 +86,7 @@ struct RunCommandGuardTests {
         ]))
         LaunchState.remember(gateway: "beta", for: .claude, in: paths.stateFile)
 
-        let session = try TerminalSession(["claude", "--dry-run"], in: paths.root)
+        let session = try TerminalSession(["--dry-run", "claude"], in: paths.root)
         try session.wait(for: "Choose a gateway")
         session.send("\r")
         #expect(try session.waitUntilExit() == 0)

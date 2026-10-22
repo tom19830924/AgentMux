@@ -21,6 +21,21 @@ struct ProjectPaths {
         self.stateFile = (directory as NSString).appendingPathComponent("state.json")
     }
 
+    /// Where an agent's own configuration lives once it has been linked.
+    func linkedDirectory(for agent: Agent) -> String {
+        (directory as NSString).appendingPathComponent(agent.configDirectoryName)
+    }
+
+    /// The link in the project root that points at it.
+    func projectLink(for agent: Agent) -> String {
+        (root as NSString).appendingPathComponent(agent.configDirectoryName)
+    }
+
+    /// Where whatever was there before is set aside, with the user's say-so.
+    func linkBackup(for agent: Agent) -> String {
+        (root as NSString).appendingPathComponent("\(agent.configDirectoryName)_bak")
+    }
+
     /// Walks up from `startDirectory` looking for the nearest `.agentmux/gateways.json`.
     ///
     /// The search stops after examining the git root or the home directory, so a

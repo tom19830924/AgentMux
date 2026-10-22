@@ -1,5 +1,3 @@
-import Foundation
-
 /// A secret being typed, one byte at a time.
 ///
 /// The terminal is where the bytes come from, but none of the rules below need

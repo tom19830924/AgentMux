@@ -135,7 +135,7 @@ struct SecretResolutionEdgeTests {
     func missingExecutableIsReported() throws {
         let paths = try projectFixture()
         let run = try runAm(
-            ["claude", "-g", "alpha"], in: paths.root,
+            ["-g", "alpha", "claude"], in: paths.root,
             env: ["AGENTMUX_CLAUDE_COMMAND": "definitely-not-installed-xyz"]
         )
         #expect(run.status != 0)

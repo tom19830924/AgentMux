@@ -1,5 +1,3 @@
-import Foundation
-
 /// Codex layers configuration from highest to lowest:
 ///
 ///   1. CLI flags / `-c key=value`        <- we use this one
