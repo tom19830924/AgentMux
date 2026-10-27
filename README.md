@@ -30,7 +30,7 @@ from a layer above the files the agents read:
 | Agent | Mechanism | Overrides |
 |---|---|---|
 | Claude Code | `--settings` + `apiKeyHelper` | `.claude/settings.json` |
-| Codex CLI | `-c` overrides | `~/.codex/config.toml`, a project's `.codex/config.toml` |
+| Codex CLI | `-c` overrides | `~/.codex/config.toml` |
 
 Running `claude` or `codex` directly behaves exactly as it did before.
 
