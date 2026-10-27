@@ -7,8 +7,9 @@ DerivedData/
 *.xcuserstate
 
 # Local state and keys: never leaves this machine
-.claude/
-.agentmux/
+.claude
+.codex
+.agentmux
 .mcp.json
 
 # Editors
