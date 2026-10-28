@@ -26,12 +26,17 @@ import Foundation
 struct ClaudeSettings: Equatable {
     var env: [String: String] = [:]
     var apiKeyHelper: String?
+    /// The command Claude Code runs to draw the status line.
+    var statusLine: String?
 
-    var isEmpty: Bool { env.isEmpty && apiKeyHelper == nil }
+    var isEmpty: Bool { env.isEmpty && apiKeyHelper == nil && statusLine == nil }
 
     func jsonObject() -> [String: Any] {
         var object: [String: Any] = ["env": env]
         if let apiKeyHelper { object["apiKeyHelper"] = apiKeyHelper }
+        if let statusLine {
+            object["statusLine"] = ["type": "command", "command": statusLine]
+        }
         return object
     }
 }
@@ -48,6 +53,7 @@ func claudeSettings(_ config: AgentConfig, _ context: InjectionContext) throws -
         }
     }
 
+    settings.statusLine = context.statusLine
     return settings
 }
 

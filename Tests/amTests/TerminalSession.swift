@@ -63,21 +63,6 @@ func projectFixture(
     return paths
 }
 
-
-/// Runs git in a directory, for the tests that need a repository to exist.
-@discardableResult
-func runGit(_ arguments: [String], in directory: String) throws -> Int32 {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-    process.arguments = ["git"] + arguments
-    process.currentDirectoryURL = URL(fileURLWithPath: directory)
-    process.standardOutput = FileHandle.nullDevice
-    process.standardError = FileHandle.nullDevice
-    try process.run()
-    process.waitUntilExit()
-    return process.terminationStatus
-}
-
 /// Runs `am` with pipes rather than a terminal, for the paths that produce
 /// plain output. A pty would rewrite the line endings these assert on.
 @discardableResult

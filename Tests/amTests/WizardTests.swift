@@ -11,8 +11,13 @@ final class ScriptedPrompter: Prompter {
 
     init(_ answers: [String]) { self.queue = answers }
 
+    /// Plain output the command printed, in order, so a test can assert on
+    /// what the user was actually told.
+    private(set) var notes: [String] = []
+
     func intro(_: String) {}
     func outro(_: String) {}
+    func note(_ message: String) { notes.append(message) }
 
     private func take(_ message: String) throws -> String {
         asked.append(message)

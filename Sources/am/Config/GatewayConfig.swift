@@ -38,6 +38,11 @@ struct Gateway: Codable, Equatable {
 struct GatewayFile: Codable, Equatable {
     var version: Int
     var gateways: [Gateway]
+    /// Show the chosen gateway in Claude Code's status line. Off unless asked
+    /// for: a status line of our own replaces whatever the user already had,
+    /// and costs the footer's keyboard hints, which is not a trade to make on
+    /// someone's behalf.
+    var statusLine: Bool?
 
     static let currentVersion = 1
 

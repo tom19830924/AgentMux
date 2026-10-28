@@ -89,49 +89,6 @@ struct TerminalUITests {
         #expect(try GatewayStore.load(paths.configFile).gateways.map(\.id) == ["acme"])
     }
 
-    // MARK: Linking
-
-    /// Linking chooses no gateway, so it never asks which one.
-    @Test("--link asks nothing when the way is clear")
-    func linkAsksNothingWhenClear() throws {
-        let paths = try projectFixture()
-        let session = try TerminalSession(["--link", "claude"], in: paths.root)
-        try session.wait(for: "Linked")
-        #expect(try session.waitUntilExit() == 0)
-        #expect(!session.plain.contains("Choose a gateway"))
-    }
-
-    /// Moving the user's directory needs the user, so it asks first and acts
-    /// only after the answer.
-    @Test("--link asks before moving an existing directory aside")
-    func linkAsksBeforeRenaming() throws {
-        let paths = try projectFixture()
-        try FileManager.default.createDirectory(
-            atPath: paths.projectLink(for: .claude), withIntermediateDirectories: true
-        )
-        let session = try TerminalSession(["--link", "claude"], in: paths.root)
-        try session.wait(for: "already exists")
-        session.send("\r")
-        try session.wait(for: "Linked")
-        #expect(try session.waitUntilExit() == 0)
-        #expect(FileManager.default.fileExists(atPath: paths.linkBackup(for: .claude)))
-    }
-
-    @Test("Cancelling that question leaves the directory alone")
-    func cancellingTheRenameChangesNothing() throws {
-        let paths = try projectFixture()
-        try FileManager.default.createDirectory(
-            atPath: paths.projectLink(for: .claude), withIntermediateDirectories: true
-        )
-        let session = try TerminalSession(["--link", "claude"], in: paths.root)
-        try session.wait(for: "already exists")
-        session.send("\u{1B}[B\r")
-        _ = try session.waitUntilExit()
-
-        #expect(!FileManager.default.fileExists(atPath: paths.linkBackup(for: .claude)))
-        #expect(!FileManager.default.fileExists(atPath: paths.linkedDirectory(for: .claude)))
-    }
-
     // MARK: Menu navigation
 
     private func menuSession() throws -> TerminalSession {

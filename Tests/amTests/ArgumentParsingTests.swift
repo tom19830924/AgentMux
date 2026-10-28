@@ -63,53 +63,6 @@ struct ArgumentParsingTests {
 
     // MARK: Combinations that cannot mean anything
 
-    /// Each of these used to be accepted and then quietly dropped on the way
-    /// to a branch that had already returned — the user believing they had
-    /// asked for something.
-    @Test("Two modes at once is refused, naming both")
-    func twoModesAreRefused() throws {
-        let run = try runAm(["--dry-run", "--link", "claude"], in: try scratchDirectory())
-        #expect(run.status != 0)
-        #expect(run.stderr.contains("--dry-run"))
-        #expect(run.stderr.contains("--link"))
-    }
-
-    @Test("--link and --unlink together is refused")
-    func linkAndUnlinkTogether() throws {
-        let run = try runAm(["--link", "--unlink", "claude"], in: try scratchDirectory())
-        #expect(run.status != 0)
-    }
-
-    @Test("--unlink with a gateway says it takes none")
-    func unlinkTakesNoGateway() throws {
-        let run = try runAm(["--unlink", "-g", "alpha", "claude"], in: try scratchDirectory())
-        #expect(run.status != 0)
-        #expect(run.stderr.contains("no gateway"))
-    }
-
-    /// Linking moves a directory; which gateway you use is settled at launch,
-    /// so naming one here is a misunderstanding worth saying.
-    @Test("--link with a gateway is refused for either agent", arguments: Agent.allCases)
-    func linkTakesNoGateway(agent: Agent) throws {
-        let paths = try projectFixture()
-        let run = try runAm(["--link", "-g", "alpha", agent.id], in: paths.root)
-        #expect(run.status != 0)
-        #expect(run.stderr.contains("no gateway"))
-    }
-
-    /// Neither starts the agent, so arguments meant for it would go nowhere.
-    /// Dropping them quietly would leave a command line that did not do what
-    /// it looks like it did.
-    @Test("--link and --unlink refuse arguments meant for the agent",
-          arguments: ["--link", "--unlink"])
-    func linkRefusesPassthrough(flag: String) throws {
-        let paths = try projectFixture()
-        let run = try runAm([flag, "claude", "--resume", "abc"], in: paths.root)
-        #expect(run.status != 0)
-        #expect(run.stderr.contains("--resume abc"))
-        #expect(!FileManager.default.fileExists(atPath: paths.projectLink(for: .claude)))
-    }
-
     /// --dry-run is deliberately not in the test above: it stands in for a
     /// launch, so what it prints has to include what the agent would be given.
     @Test("--dry-run keeps the agent's own arguments and shows them")
@@ -156,16 +109,16 @@ struct ArgumentParsingTests {
     // MARK: Where am's arguments end
 
     /// The agent's name ends am's own arguments, so a flag am would otherwise
-    /// act on means nothing once it is past that point — including the one
-    /// whose effect would be visible on disk.
-    @Test("A mode flag after the agent reaches the agent instead")
-    func modeFlagAfterTheAgentIsPassedOn() throws {
+    /// act on means nothing once it is past that point.
+    @Test("One of am's own flags after the agent reaches the agent instead")
+    func ownFlagAfterTheAgentIsPassedOn() throws {
         let paths = try launchable()
 
-        let run = try runAm(["-g", "alpha", "claude", "--link"], in: paths.root)
+        let run = try runAm(["-g", "alpha", "claude", "--dry-run"], in: paths.root)
         #expect(run.status == 0)
-        #expect(run.stdout.contains("--link"), "--link should have reached the agent")
-        #expect(!FileManager.default.fileExists(atPath: paths.projectLink(for: .claude)))
+        #expect(run.stdout.contains("--dry-run"), "--dry-run should have reached the agent")
+        // am's own dry run prints this; the agent getting the flag must not.
+        #expect(!run.stdout.contains("Nothing was started."))
     }
 
     /// Codex spells resume as a subcommand, with no leading dash. am used to
@@ -225,12 +178,6 @@ struct ArgumentParsingTests {
         let run = try runAm(["-g", "alpha", "--dry-run", "claude"], in: paths.root)
         #expect(run.status == 0)
         #expect(run.stdout.contains("alpha.example.com"))
-    }
-
-    @Test("--link on its own works for either agent", arguments: Agent.allCases)
-    func plainLinkWorks(agent: Agent) throws {
-        let paths = try projectFixture()
-        #expect(try runAm(["--link", agent.id], in: paths.root).status == 0)
     }
 
     /// 130 is the shell's convention for "interrupted". Ctrl-C never reaches

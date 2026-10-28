@@ -122,9 +122,11 @@ func addCommand(
         }
 
         if agent == .codex {
+            // responses first, so it is what the menu lands on: codex-cli
+            // stopped accepting `wire_api = "chat"` in 0.164.0.
             wireAPI = try ui.select("API shape", [
-                Choice(value: "chat", label: "chat", hint: "/v1/chat/completions, what most third parties speak"),
                 Choice(value: "responses", label: "responses", hint: "/v1/responses, OpenAI's own"),
+                Choice(value: "chat", label: "chat", hint: "/v1/chat/completions, what most third parties speak"),
             ])
         }
     }

@@ -59,8 +59,39 @@ struct CommandSurfaceTests {
         let root = try scratchDirectory()
         let run = try runAm(["--help"], in: root)
         #expect(run.status == 0)
-        for command in ["am init", "am add", "am ls"] {
+        for command in ["am init", "am add", "am ls", "am extension"] {
             #expect(run.stdout.contains(command))
+        }
+    }
+
+    /// A mistyped command is told what it could have meant, and that list is
+    /// written out by hand in a second place. This is the two drifting apart:
+    /// a command added to the help and forgotten in the hint is one the error
+    /// quietly denies exists.
+    @Test("A mistyped command is offered every command the help lists")
+    func theHintNamesEveryCommand() throws {
+        let root = try scratchDirectory()
+        let help = try runAm(["--help"], in: root).stdout
+        let hint = try runAm(["nonsense"], in: root).stderr
+
+        // Only the Usage block: the title line and the examples further down
+        // also begin with "am", and neither is a list of commands.
+        let advertised = help
+            .components(separatedBy: "\n")
+            .drop { $0.trimmingCharacters(in: .whitespaces) != "Usage:" }
+            .dropFirst()
+            .prefix { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .compactMap { line -> String? in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard trimmed.hasPrefix("am ") else { return nil }
+                let name = trimmed.dropFirst(3).prefix { !$0.isWhitespace }
+                // Not commands: the agent placeholder and the flags.
+                return name.hasPrefix("-") || name.hasPrefix("[") ? nil : String(name)
+            }
+        #expect(advertised.contains("extension"), Comment(rawValue: advertised.joined(separator: ",")))
+
+        for command in advertised {
+            #expect(hint.contains(command), "the hint does not name \(command): \(hint)")
         }
     }
 
@@ -79,33 +110,12 @@ struct CommandSurfaceTests {
     }
 
     /// The help is written by hand and the parser is another piece of code, so
-    /// a flag can be added to one and forgotten in the other — which is how
-    /// --link came to be described as something it only does for one agent.
+    /// a flag can be added to one and forgotten in the other.
     @Test("--help lists every flag the parser accepts")
     func helpListsEveryFlag() throws {
         let run = try runAm(["--help"], in: try scratchDirectory())
-        for flag in runModeFlags.map(\.flag) + ["-g", "--gateway", "--gateway=", "-h", "--help", "-v", "--version"] {
+        for flag in ["-g", "--gateway", "--gateway=", "--dry-run", "-h", "--help", "-v", "--version"] {
             #expect(run.stdout.contains(flag), "\(flag) is missing from --help")
-        }
-    }
-
-    @Test("--help says the modes are one at a time")
-    func helpSaysModesAreExclusive() throws {
-        let run = try runAm(["--help"], in: try scratchDirectory())
-        #expect(run.stdout.contains("One of --dry-run, --link and --unlink at a time"))
-    }
-
-    /// The --link line went wrong three times by describing what it does for
-    /// Claude as if it were both agents. It now describes one thing, which is
-    /// all it does — and the test keeps the Claude-only wording out.
-    @Test("The --link line describes one thing, true of both agents")
-    func linkLineDoesNotOverclaim() throws {
-        let run = try runAm(["--help"], in: try scratchDirectory())
-        let line = try #require(
-            run.stdout.split(separator: "\n").first { $0.contains("--link ") }
-        )
-        for overclaim in ["this gateway", "the gateway", "extension"] {
-            #expect(!line.contains(overclaim), "the --link line still claims \"\(overclaim)\"")
         }
     }
 
@@ -135,12 +145,6 @@ struct CommandSurfaceTests {
                 "--help offers \(name) after an agent, but the parser refuses it"
             )
         }
-    }
-
-    @Test("--help says only --dry-run takes a gateway")
-    func helpNamesTheGatewayRule() throws {
-        let run = try runAm(["--help"], in: try scratchDirectory())
-        #expect(run.stdout.contains("Only --dry-run takes a gateway"))
     }
 
     @Test("--help names no particular provider")

@@ -8,7 +8,7 @@ private func resolver(_ secrets: [String: String] = ["my-gateway_key": TOKEN]) -
 }
 
 private func context(_ resolver: SecretResolver) -> InjectionContext {
-    InjectionContext(resolver: resolver) { name in
+    InjectionContext(resolver: resolver, statusLine: nil) { name in
         guard resolver.has(name) else { throw AgentMuxError("No secret named \"\(name)\"") }
         return "am secret get \(name)"
     }

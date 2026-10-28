@@ -8,6 +8,10 @@ struct Injection: Equatable {
 
 struct InjectionContext {
     let resolver: SecretResolver
+    /// The command an agent should run to draw its status line, or nil when
+    /// this project has not asked for one. Built by the caller, which is the
+    /// only place that knows which gateway was chosen.
+    let statusLine: String?
     /// Builds a shell command that prints the named secret, for an agent that
     /// can fetch its key on demand rather than being handed it up front.
     let secretHelperCommand: (String) throws -> String
@@ -33,10 +37,6 @@ enum Agent: String, CaseIterable {
         case .codex: "openai"
         }
     }
-
-    /// The directory this agent keeps its own configuration in, inside a
-    /// project. `--link` moves it into `.agentmux/` and links it back.
-    var configDirectoryName: String { ".\(rawValue)" }
 
     /// One line shown by `am --help` explaining how this agent receives the gateway.
     var injectionSummary: String {

@@ -19,6 +19,13 @@ protocol Prompter {
     func text(_ message: String, placeholder: String?, defaultValue: String?,
               validate: ((String) -> String?)?) throws -> String
     func password(_ message: String) throws -> String
+    /// A line of plain output — not a question, but part of what the command
+    /// told the user, so it goes through the same surface a test can watch.
+    func note(_ message: String)
+}
+
+extension Prompter {
+    func note(_ message: String) { Terminal.write(message) }
 }
 
 extension Prompter {

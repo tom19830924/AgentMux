@@ -1,53 +1,9 @@
 import Foundation
 
-/// What the run is for. Each of these ends somewhere different, so asking for
-/// two of them asks for two different things — which an enum cannot hold, and
-/// so cannot be left for a later branch to resolve by accident.
-enum RunMode: Equatable {
-    /// Hand the process over to the agent.
-    case launch
-    /// Print the injection instead.
-    case dryRun
-    /// Write it where the agent's own tooling reads it.
-    case link
-    /// Take that back out.
-    case unlink
-}
-
-/// The flags that name a mode, paired with the mode they name.
-///
-/// The parser reads this; the help text spells the same flags out by hand,
-/// because a generated list cannot say what each one is for. What keeps the
-/// two together is a test that every flag here appears in `--help`.
-let runModeFlags: [(flag: String, mode: RunMode)] = [
-    ("--dry-run", .dryRun),
-    ("--link", .link),
-    ("--unlink", .unlink),
-]
-
-/// Works out the mode from the arguments, refusing two that disagree.
-///
-/// These are only the arguments before the agent's name — `splitAtAgent` has
-/// already set the agent's own aside — so a flag of the same name there is the
-/// agent's business and never reaches this.
-func runMode(from arguments: [String]) throws -> RunMode {
-    var chosen: (flag: String, mode: RunMode)?
-    for argument in arguments {
-        guard let found = runModeFlags.first(where: { $0.flag == argument }) else { continue }
-        if let chosen, chosen.mode != found.mode {
-            throw AgentMuxError(
-                "\(chosen.flag) and \(found.flag) ask for different things",
-                hint: "Pick one of \(runModeFlags.map(\.flag).joined(separator: ", "))"
-            )
-        }
-        chosen = found
-    }
-    return chosen?.mode ?? .launch
-}
-
 struct RunOptions {
     var gateway: String?
-    var mode: RunMode = .launch
+    /// Print what would be injected instead of starting the agent.
+    var dryRun = false
     var passthrough: [String] = []
 }
 
@@ -55,19 +11,6 @@ struct RunOptions {
 func runCommand(agentId: String, options: RunOptions, prompter: Prompter) throws -> Int32 {
     let agent = try Agent.named(agentId)
     let paths = try ProjectPaths.require()
-
-    // Neither needs a gateway, and both do the same thing for every agent, so
-    // neither has to wait for one to be configured first.
-    switch options.mode {
-    case .link:
-        let preparation = try prepareLink(for: agent, paths: paths, prompter: prompter)
-        return try writeLink(for: agent, paths: paths, preparation: preparation)
-    case .unlink:
-        return try unlinkDirectory(for: agent, paths: paths)
-    default:
-        break
-    }
-
     let config = try GatewayStore.load(paths.configFile)
 
     guard !config.gateways.isEmpty else {
@@ -88,7 +31,17 @@ func runCommand(agentId: String, options: RunOptions, prompter: Prompter) throws
     )
 
     let resolver = try SecretResolver(file: paths.secretsFile)
-    let context = InjectionContext(resolver: resolver) { name in
+    let context = InjectionContext(
+        resolver: resolver,
+        // Claude Code only: Codex's status line cannot run a command, and the
+        // fields below are named after Anthropic's variables either way.
+        statusLine: config.statusLine == true && agent == .claude
+            ? statusLineCommand(
+                for: gateway, config: gateway.agents[agent.id]!,
+                colour: ProcessInfo.processInfo.environment["NO_COLOR"] == nil
+            )
+            : nil
+    ) { name in
         // Fail here rather than letting the agent start and its helper fail
         // later, where the error would be buried inside the agent's own output.
         guard resolver.has(name) else {
@@ -113,7 +66,7 @@ func runCommand(agentId: String, options: RunOptions, prompter: Prompter) throws
         )
     }
 
-    if options.mode == .dryRun {
+    if options.dryRun {
         printDryRun(command: agent.command, args: args, env: injection.env, resolver: resolver)
         return 0
     }
@@ -168,6 +121,55 @@ func secretHelperCommand(secretsFile: String, name: String) -> String {
     return [executable, "secret", "get", "--file", secretsFile, name]
         .map(shellQuote)
         .joined(separator: " ")
+}
+
+/// What the status line says: which gateway this session is on, under whose
+/// key, and where that actually points.
+///
+/// All three are known before the agent starts, so the line needs nothing
+/// from the session and the command stays a `printf` — no reading stdin, no
+/// parser, nothing to install.
+///
+/// A field is left out when the gateway has nothing to put in it, so "use the
+/// CLI's own login" shows a name and no more rather than empty labels.
+func statusLineFields(gateway: Gateway, config: AgentConfig) -> [(label: String, value: String)] {
+    var fields = [(label: "gateway", value: gateway.displayName)]
+    let settings = config.settings ?? [:]
+
+    if let token = settings["ANTHROPIC_AUTH_TOKEN"], let name = wholeSecretReference(token) {
+        fields.append((label: "key", value: name))
+    }
+
+    // The host, not the whole URL: the path is noise, and a base URL holding a
+    // reference to a secret must not be resolved into something on display.
+    if let raw = settings["ANTHROPIC_BASE_URL"], !raw.isEmpty,
+       !raw.contains("${secret:"), let host = URL(string: raw)?.host
+    {
+        fields.append((label: "host", value: host))
+    }
+    return fields
+}
+
+/// Turns those fields into the command Claude Code runs to draw them.
+///
+/// Labels and separators live in the format string, which is ours; every value
+/// is a separate argument, so a `%` or a quote in a gateway's label cannot
+/// become syntax. Labels carry no escape of their own, which leaves them in
+/// the grey Claude Code already paints the status line, with only the values
+/// coloured — the contrast is what makes them readable.
+///
+/// Colours are written as `\033` for `printf` to expand rather than as literal
+/// control bytes, so what `am` puts on the command line stays legible in `ps`.
+///
+/// `colour` is the caller's to decide: this runs in the agent's terminal, not
+/// in ours, so whether our own stdout is a terminal says nothing about it.
+func statusLineCommand(for gateway: Gateway, config: AgentConfig, colour: Bool) -> String {
+    let fields = statusLineFields(gateway: gateway, config: config)
+    let format = fields
+        .map { colour ? "\($0.label): \\033[36m%s\\033[0m" : "\($0.label): %s" }
+        .joined(separator: ", ")
+    let arguments = fields.map { shellQuote($0.value) }.joined(separator: " ")
+    return "printf '\(format)' \(arguments)"
 }
 
 /// Quotes a string for the single shell command handed to an agent.

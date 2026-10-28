@@ -17,6 +17,7 @@ func helpText() -> String {
       am init                               Create .agentmux/ and set up the first gateway
       am add                                Add a gateway, or another agent to one you have
       am ls                                 List this project's gateways
+      am extension                          Put a gateway where the VS Code extension reads it
       am [options] <agent> [its own args]   Pick a gateway and start that agent
       am -h, am --help                      Show this help
       am -v, am --version                   Show the version
@@ -28,12 +29,6 @@ func helpText() -> String {
       -g, --gateway <id>   Skip the menu and use this gateway
           --gateway=<id>   The same, written as one word
           --dry-run        Print what would be injected, without starting anything
-          --link           Keep this agent's config inside .agentmux/, linked back
-          --unlink         Remove a link am made, leaving what it points at
-
-    One of --dry-run, --link and --unlink at a time: each ends the run somewhere
-    different. Only --dry-run takes a gateway: linking only rearranges
-    directories, and which gateway you use is settled at launch.
 
     The agent's name ends am's own arguments. Everything after it is handed to
     the agent untouched, whatever it looks like — which is why the two CLIs can
@@ -45,7 +40,6 @@ func helpText() -> String {
       am -g my-gateway claude      Name the gateway instead
       am claude --resume <id>      Everything after the agent is the agent's own
       am codex resume <id>         Codex spells the same thing as a subcommand
-      am --link claude             am's own flags go before the agent too
 
     Running claude or codex directly is unaffected: they read their own settings as before.
 
@@ -71,6 +65,8 @@ func run(_ argv: [String]) throws -> Int32 {
         return try addCommand()
     case "ls":
         return try listCommand()
+    case "extension":
+        return try extensionCommand()
     case "secret":
         let rest = Array(argv.dropFirst())
         guard rest.first == "get" else {
@@ -89,14 +85,14 @@ func run(_ argv: [String]) throws -> Int32 {
     guard first.hasPrefix("-") || Agent.isAgent(first) else {
         throw AgentMuxError(
             "Unknown command \"\(first)\"",
-            hint: "Commands are init, add, ls and secret, or the name of an agent"
+            hint: "Commands are init, add, ls, extension and secret, or the name of an agent"
                 + " (\(Agent.allCases.map(\.id).joined(separator: ", ")))"
         )
     }
 
     let (agentId, own, passthrough) = try splitAtAgent(argv)
 
-    var options = RunOptions(mode: try runMode(from: own), passthrough: passthrough)
+    var options = RunOptions(passthrough: passthrough)
     var index = 0
     while index < own.count {
         let argument = own[index]
@@ -107,8 +103,9 @@ func run(_ argv: [String]) throws -> Int32 {
             }
             options.gateway = own[index + 1]
             index += 2
-        case _ where runModeFlags.contains(where: { $0.flag == argument }):
-            index += 1  // already settled by runMode(from:)
+        case "--dry-run":
+            options.dryRun = true
+            index += 1
         default:
             if argument.hasPrefix("--gateway=") {
                 options.gateway = String(argument.dropFirst("--gateway=".count))
@@ -121,28 +118,6 @@ func run(_ argv: [String]) throws -> Int32 {
                     + "is the agent's. To pass this to \(agentId): am \(agentId) \(argument)"
             )
         }
-    }
-
-    // Neither mode chooses a gateway, so naming one is a misunderstanding
-    // rather than a preference to honour quietly.
-    if options.mode == .link || options.mode == .unlink, options.gateway != nil {
-        throw AgentMuxError(
-            "\(options.mode == .link ? "--link" : "--unlink") takes no gateway",
-            hint: "Linking puts an agent's own configuration inside .agentmux/; "
-                + "which gateway you use is a separate question, settled at launch"
-        )
-    }
-
-    // Neither starts the agent, so arguments meant for it would go nowhere.
-    // Dropping them quietly would hide a command line that did not do what it
-    // looks like it did. --dry-run is not here: it stands in for a launch, so
-    // what it prints has to include them.
-    if options.mode == .link || options.mode == .unlink, !passthrough.isEmpty {
-        throw AgentMuxError(
-            "\(options.mode == .link ? "--link" : "--unlink") does not start \(agentId), "
-                + "so it has nothing to do with \(passthrough.joined(separator: " "))",
-            hint: "Run it on its own: am \(options.mode == .link ? "--link" : "--unlink") \(agentId)"
-        )
     }
 
     return try runCommand(agentId: agentId, options: options, prompter: TerminalPrompter())
